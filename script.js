@@ -82,6 +82,11 @@ function playMoveSound(move) {
 
 // ─── TAB NAVIGATION ───────────────────────────────────────
 function showTab(tabId) {
+  if (tabId === 'admin' && !currentUser) {
+    openAdminModal();
+    return;
+  }
+
   showProgress();
 
   const current = document.querySelector('section.active');
@@ -2496,15 +2501,7 @@ async function supabaseLogout() {
   closeAdminModal();
 }
 
-// ─── GUARD ADMIN TAB ───────────────────────────────────────
-const _originalShowTab = showTab;
-function showTab(tabId) {
-  if (tabId === 'admin' && !currentUser) {
-    openAdminModal();
-    return;
-  }
-  _originalShowTab(tabId);
-}
+
 
 // ─── CONFIRM MODAL ─────────────────────────────────────────
 let confirmCallback = null;
