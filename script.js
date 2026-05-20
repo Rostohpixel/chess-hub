@@ -214,65 +214,91 @@ function openProfile(index) {
 
   trackView(player.id);
 
+  const achievementList = (player.achievements || '').split(',').filter(a => a.trim() !== '');
+  const achievementIcons = ['🏆','🥇','🎖️','⭐','🏅','👑','🎯','💎','🔥','✨'];
+  const achievementsHTML = achievementList.length > 0
+    ? `<div class="achievements-grid">${achievementList.map((a, i) => `
+        <div class="achievement-item">
+          <span class="achievement-icon">${achievementIcons[i % achievementIcons.length]}</span>
+          <span class="achievement-text">${sanitize(a.trim())}</span>
+        </div>`).join('')}</div>`
+    : `<p style="color:var(--text-dim);font-style:italic;">No achievements listed yet.</p>`;
+
   container.innerHTML = `
-    <div class="card">
-      <h2>
-        ${player.title ? `<span class="title-badge title-${player.title}">${player.title}</span>` : ''}
-        ${sanitize(player.name)}
-      </h2>
-      ${player.rating ? `<span class="player-rating">⭐ FIDE Rating: ${player.rating}</span>` : ''}
-      <h3>Biography</h3>
-      <p>${sanitize(player.bio)}</p>
-      <h3>Chess Career</h3>
-      <p>${sanitize(player.career || "No career info added.")}</p>
-      <h3>Achievements</h3>
-      <ul>
-        ${(player.achievements || '')
-          .split(',')
-          .filter(a => a.trim() !== '')
-          .map(a => `<li>${sanitize(a.trim())}</li>`)
-          .join('')}
-      </ul>
-      <h3>Best Games</h3>
-      <div class="games-list">
-        ${player.games && player.games.length > 0
-          ? player.games.map((g, i) =>
-              `<button onclick="loadGame(${index}, ${i})">${sanitize(g.name)}</button>`
-            ).join('')
-          : "<p>No games available</p>"
-        }
+    <div class="card" style="cursor:default;">
+
+      <div class="profile-header">
+        <img src="${sanitize(player.image || 'images/default.png')}" class="profile-avatar" loading="lazy" onerror="this.src='images/default.png'">
+        <div class="profile-meta">
+          <h2>
+            ${player.title ? `<span class="title-badge title-${player.title}">${player.title}</span>` : ''}
+            ${sanitize(player.name)}
+          </h2>
+          <div class="profile-badges">
+            ${player.rating ? `<span class="profile-rating-badge">⭐ FIDE ${player.rating}</span>` : ''}
+          </div>
+        </div>
       </div>
+
+      <div class="profile-section">
+        <div class="profile-section-title">Biography</div>
+        <div class="bio-box"><p>${sanitize(player.bio)}</p></div>
+      </div>
+
+      <div class="profile-section">
+        <div class="profile-section-title">Chess Career</div>
+        <div class="career-box"><p>${sanitize(player.career || 'No career info added yet.')}</p></div>
+      </div>
+
+      <div class="profile-section">
+        <div class="profile-section-title">Achievements</div>
+        ${achievementsHTML}
+      </div>
+
+      <div class="profile-section">
+        <div class="profile-section-title">Best Games</div>
+        <div class="games-btn-grid">
+          ${player.games && player.games.length > 0
+            ? player.games.map((g, i) => `<button class="game-btn" onclick="loadGame(${index}, ${i})">${sanitize(g.name)}</button>`).join('')
+            : "<p style='color:var(--text-dim);font-style:italic;'>No games available yet.</p>"
+          }
+        </div>
+      </div>
+
       <div class="share-bar">
         <button class="share-btn" onclick="shareProfile(${index})">🔗 Share Profile</button>
         <button class="share-btn" onclick="downloadProfilePGN(${index})">⬇️ Download PGN</button>
         <button class="share-btn" onclick="sharePosition()">📋 Copy FEN</button>
       </div>
-      <div class="game-container">
-        <div style="display:flex; gap:10px; align-items:center;">
-          <div id="evalBarContainer" style="width:25px; height:400px; background:#1a1a1a; border-radius:6px; overflow:hidden; position:relative;">
-            <div id="evalBar" style="width:100%; height:50%; background:white; position:absolute; bottom:0; transition:height 0.3s;"></div>
-            <div id="evalScore" style="position:absolute; width:100%; text-align:center; font-size:10px; font-weight:bold; z-index:10; left:0; bottom:4px; color:#333;">0.00</div>
+
+      <div class="profile-section">
+        <div class="profile-section-title">Game Viewer</div>
+        <div class="game-container">
+          <div style="display:flex;gap:10px;align-items:center;">
+            <div id="evalBarContainer" style="width:25px;height:400px;background:#1a1a1a;border-radius:6px;overflow:hidden;position:relative;">
+              <div id="evalBar" style="width:100%;height:50%;background:white;position:absolute;bottom:0;transition:height 0.3s;"></div>
+              <div id="evalScore" style="position:absolute;width:100%;text-align:center;font-size:10px;font-weight:bold;z-index:10;left:0;bottom:4px;color:#333;">0.00</div>
+            </div>
+            <div class="board-section">
+              <div id="blackLabel" class="player-label">
+                <span class="color-dot black"></span>
+                <span id="blackPlayerName">Black</span>
+              </div>
+              <div id="board" class="board"></div>
+              <div id="whiteLabel" class="player-label">
+                <span class="color-dot white"></span>
+                <span id="whitePlayerName">White</span>
+              </div>
+              <div class="controls">
+                <button onclick="prevMove()">⏮</button>
+                <button onclick="nextMove()">⏭</button>
+              </div>
+            </div>
           </div>
-          <div class="board-section">
-            <div id="blackLabel" class="player-label">
-              <span class="color-dot black"></span>
-              <span id="blackPlayerName">Black</span>
-            </div>
-            <div id="board" class="board"></div>
-            <div id="whiteLabel" class="player-label">
-              <span class="color-dot white"></span>
-              <span id="whitePlayerName">White</span>
-            </div>
-            <div class="controls">
-              <button onclick="prevMove()">⏮</button>
-              <button onclick="nextMove()">⏭</button>
-            </div>
-          </div>
-        </div>
-        <div class="moves-section">
-          <div id="moves"></div>
+          <div class="moves-section"><div id="moves"></div></div>
         </div>
       </div>
+
     </div>
   `;
 
@@ -2770,5 +2796,501 @@ document.addEventListener('click', (e) => {
   closeAllPlayerMenus();
   if (!e.target.closest('.global-search-container')) {
     document.getElementById('searchResults')?.classList.add('hidden');
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ─── GROUP 1: VISUAL — PARTICLE SYSTEM ───────────────────────
+// ══════════════════════════════════════════════════════════════
+
+function initParticles() {
+  // create canvas
+  const canvas = document.createElement('canvas');
+  canvas.id = 'particleCanvas';
+  document.body.insertBefore(canvas, document.body.firstChild);
+
+  const ctx    = canvas.getContext('2d');
+  const pieces = ['♟','♜','♞','♝','♛','♚'];
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // create particles
+  const particles = Array.from({ length: 18 }, () => createParticle(canvas, pieces));
+
+  function createParticle(canvas, pieces) {
+    return {
+      x:      Math.random() * canvas.width,
+      y:      Math.random() * canvas.height,
+      size:   Math.random() * 18 + 10,
+      speedX: (Math.random() - 0.5) * 0.4,
+      speedY: (Math.random() - 0.5) * 0.4,
+      piece:  pieces[Math.floor(Math.random() * pieces.length)],
+      opacity: Math.random() * 0.4 + 0.1,
+      rotation: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 0.3,
+    };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    particles.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.opacity;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation * Math.PI / 180);
+      ctx.font = `${p.size}px serif`;
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText(p.piece, -p.size / 2, p.size / 2);
+      ctx.restore();
+
+      // move
+      p.x        += p.speedX;
+      p.y        += p.speedY;
+      p.rotation += p.rotSpeed;
+
+      // wrap around edges
+      if (p.x < -40)               p.x = canvas.width  + 40;
+      if (p.x > canvas.width  + 40) p.x = -40;
+      if (p.y < -40)               p.y = canvas.height + 40;
+      if (p.y > canvas.height + 40) p.y = -40;
+    });
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+}
+
+// ─── BOOT PARTICLES ───────────────────────────────────────────
+// only on desktop (mobile uses CSS display:none)
+if (window.innerWidth > 768) {
+  initParticles();
+}
+
+// ══════════════════════════════════════════════════════════════
+// ─── GROUP 2: PLAYER SECTION ─────────────────────────────────
+// Profile Tabs · Rating Chart · Flags · Recently Viewed
+// ══════════════════════════════════════════════════════════════
+
+// ─── COUNTRY FLAGS ────────────────────────────────────────────
+const COUNTRY_FLAGS = {
+  'Russia':        { flag: '🇷🇺', code: 'RUS' },
+  'Norway':        { flag: '🇳🇴', code: 'NOR' },
+  'USA':           { flag: '🇺🇸', code: 'USA' },
+  'United States': { flag: '🇺🇸', code: 'USA' },
+  'India':         { flag: '🇮🇳', code: 'IND' },
+  'China':         { flag: '🇨🇳', code: 'CHN' },
+  'Armenia':       { flag: '🇦🇲', code: 'ARM' },
+  'Ukraine':       { flag: '🇺🇦', code: 'UKR' },
+  'Azerbaijan':    { flag: '🇦🇿', code: 'AZE' },
+  'France':        { flag: '🇫🇷', code: 'FRA' },
+  'Germany':       { flag: '🇩🇪', code: 'GER' },
+  'Poland':        { flag: '🇵🇱', code: 'POL' },
+  'Netherlands':   { flag: '🇳🇱', code: 'NED' },
+  'Hungary':       { flag: '🇭🇺', code: 'HUN' },
+  'Cuba':          { flag: '🇨🇺', code: 'CUB' },
+  'Latvia':        { flag: '🇱🇻', code: 'LAT' },
+  'Georgia':       { flag: '🇬🇪', code: 'GEO' },
+  'Iran':          { flag: '🇮🇷', code: 'IRI' },
+  'Spain':         { flag: '🇪🇸', code: 'ESP' },
+  'England':       { flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', code: 'ENG' },
+  'Kenya':         { flag: '🇰🇪', code: 'KEN' },
+};
+
+function getFlagHTML(playerName, bio) {
+  // try to detect country from bio or name
+  for (const [country, info] of Object.entries(COUNTRY_FLAGS)) {
+    if (bio && bio.includes(country)) {
+      return `<span class="player-flag"><span class="flag-emoji">${info.flag}</span>${country}</span>`;
+    }
+  }
+  return '';
+}
+
+// ─── RECENTLY VIEWED ──────────────────────────────────────────
+let recentlyViewed = JSON.parse(localStorage.getItem('recentlyViewed') || '[]');
+
+function addToRecentlyViewed(player) {
+  recentlyViewed = recentlyViewed.filter(p => p.id !== player.id);
+  recentlyViewed.unshift({ id: player.id, name: player.name, image: player.image, title: player.title });
+  if (recentlyViewed.length > 5) recentlyViewed = recentlyViewed.slice(0, 5);
+  localStorage.setItem('recentlyViewed', JSON.stringify(recentlyViewed));
+}
+
+function renderRecentlyViewed() {
+  const container = document.getElementById('recentlyViewedList');
+  if (!container || recentlyViewed.length === 0) return;
+
+  document.getElementById('recentlyViewedSection').style.display = 'block';
+  container.innerHTML = recentlyViewed.map(p => {
+    const idx = players.findIndex(pl => pl.id === p.id);
+    if (idx === -1) return '';
+    return `
+      <div class="recently-viewed-item" onclick="openProfile(${idx})">
+        <img src="${p.image || 'images/default.png'}" onerror="this.src='images/default.png'">
+        <span>${p.title ? p.title + ' ' : ''}${sanitize(p.name)}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── RATING HISTORY CHART ─────────────────────────────────────
+// Simulates a rating history based on current rating
+function generateRatingHistory(currentRating) {
+  if (!currentRating) return [];
+  const history = [];
+  let r = currentRating - Math.floor(Math.random() * 80 + 40);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const month = months[(now.getMonth() - i + 12) % 12];
+    const change = Math.floor(Math.random() * 30) - 10;
+    r = Math.min(currentRating, Math.max(currentRating - 120, r + change));
+    history.push({ month, rating: r });
+  }
+  history.push({ month: 'Now', rating: currentRating });
+  return history;
+}
+
+function drawRatingChart(canvas, history) {
+  if (!canvas || history.length < 2) return;
+  const ctx = canvas.getContext('2d');
+  const W   = canvas.width  = canvas.offsetWidth;
+  const H   = canvas.height = 120;
+  const pad = { top: 10, right: 10, bottom: 24, left: 40 };
+
+  const ratings = history.map(h => h.rating);
+  const minR    = Math.min(...ratings) - 20;
+  const maxR    = Math.max(...ratings) + 20;
+  const rangeR  = maxR - minR || 1;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // grid lines
+  ctx.strokeStyle = 'rgba(56,189,248,0.08)';
+  ctx.lineWidth   = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + ((H - pad.top - pad.bottom) / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+  }
+
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top  - pad.bottom;
+
+  const points = history.map((h, i) => ({
+    x: pad.left + (i / (history.length - 1)) * plotW,
+    y: pad.top  + plotH - ((h.rating - minR) / rangeR) * plotH,
+    rating: h.rating,
+    month:  h.month,
+  }));
+
+  // fill gradient
+  const grad = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
+  grad.addColorStop(0, 'rgba(56,189,248,0.25)');
+  grad.addColorStop(1, 'rgba(56,189,248,0.01)');
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, H - pad.bottom);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(points[points.length - 1].x, H - pad.bottom);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // line
+  ctx.beginPath();
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth   = 2.5;
+  ctx.lineJoin    = 'round';
+  points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.stroke();
+
+  // dots
+  points.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, i === points.length - 1 ? 5 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = i === points.length - 1 ? '#38bdf8' : 'rgba(56,189,248,0.6)';
+    ctx.fill();
+    if (i === points.length - 1) {
+      ctx.strokeStyle = 'rgba(56,189,248,0.4)';
+      ctx.lineWidth   = 6;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  });
+
+  // x-axis labels (every 3rd)
+  ctx.fillStyle  = 'rgba(100,116,139,0.8)';
+  ctx.font       = '9px Arial';
+  ctx.textAlign  = 'center';
+  points.forEach((p, i) => {
+    if (i % 3 === 0 || i === points.length - 1) {
+      ctx.fillText(p.month, p.x, H - 6);
+    }
+  });
+
+  // y-axis labels
+  ctx.textAlign = 'right';
+  ctx.fillText(maxR, pad.left - 4, pad.top + 8);
+  ctx.fillText(minR, pad.left - 4, H - pad.bottom - 2);
+}
+
+// ─── ANIMATED RATING COUNTER ─────────────────────────────────
+function animateRating(el, target) {
+  if (!el || !target) return;
+  let current  = target - 80;
+  const step   = Math.ceil((target - current) / 40);
+  const timer  = setInterval(() => {
+    current += step;
+    if (current >= target) { current = target; clearInterval(timer); }
+    el.innerText = current;
+  }, 30);
+}
+
+// ─── PROFILE TABS ─────────────────────────────────────────────
+function initProfileTabs() {
+  const tabs = document.querySelectorAll('.profile-tab-btn');
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.forEach(b => b.classList.remove('tab-active'));
+      btn.classList.add('tab-active');
+
+      const target = btn.dataset.tab;
+      document.querySelectorAll('.profile-tab-panel').forEach(panel => {
+        panel.classList.remove('tab-panel-active');
+      });
+      const activePanel = document.getElementById(`tab-${target}`);
+      if (activePanel) activePanel.classList.add('tab-panel-active');
+
+      // draw chart when stats tab opens
+      if (target === 'stats') {
+        setTimeout(() => {
+          const canvas = document.getElementById('ratingChartCanvas');
+          if (canvas) {
+            const rating = parseInt(canvas.dataset.rating);
+            if (rating) drawRatingChart(canvas, generateRatingHistory(rating));
+          }
+        }, 50);
+      }
+    });
+  });
+}
+
+// ─── OVERRIDE openProfile WITH TABBED VERSION ─────────────────
+const _openProfileOriginal = openProfile;
+
+function openProfile(index) {
+  const player    = players[index];
+  const container = document.getElementById('profileContent');
+
+  // track views
+  trackView(player.id);
+  addToRecentlyViewed(player);
+
+  const achievementList  = (player.achievements || '').split(',').filter(a => a.trim() !== '');
+  const achievementIcons = ['🏆','🥇','🎖️','⭐','🏅','👑','🎯','💎','🔥','✨'];
+  const totalGames       = player.games ? player.games.length : 0;
+  const views            = getViews(player.id);
+  const flagHTML         = getFlagHTML(player.name, player.bio);
+
+  const achievementsHTML = achievementList.length > 0
+    ? `<div class="achievements-grid">${achievementList.map((a, i) => `
+        <div class="achievement-item">
+          <span class="achievement-icon">${achievementIcons[i % achievementIcons.length]}</span>
+          <span class="achievement-text">${sanitize(a.trim())}</span>
+        </div>`).join('')}</div>`
+    : `<p style="color:var(--text-dim);font-style:italic;">No achievements listed yet.</p>`;
+
+  container.innerHTML = `
+    <div class="card" style="cursor:default;">
+
+      <!-- ── PROFILE HEADER ── -->
+      <div class="profile-header">
+        <img src="${sanitize(player.image || 'images/default.png')}"
+             class="profile-avatar" loading="lazy"
+             onerror="this.src='images/default.png'">
+        <div class="profile-meta">
+          <h2>
+            ${player.title ? `<span class="title-badge title-${player.title}">${player.title}</span>` : ''}
+            ${sanitize(player.name)}
+          </h2>
+          <div class="profile-badges">
+            ${player.rating ? `<span class="profile-rating-badge">⭐ FIDE <span id="ratingCounter">${player.rating}</span></span>` : ''}
+            ${flagHTML}
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TABS ── -->
+      <div class="profile-tabs">
+        <button class="profile-tab-btn tab-active" data-tab="bio">📖 Bio</button>
+        <button class="profile-tab-btn" data-tab="stats">📊 Stats</button>
+        <button class="profile-tab-btn" data-tab="achievements">🏆 Achievements</button>
+        <button class="profile-tab-btn" data-tab="games">🎮 Games</button>
+      </div>
+
+      <!-- ── TAB: BIO ── -->
+      <div class="profile-tab-panel tab-panel-active" id="tab-bio">
+        <div class="profile-section">
+          <div class="profile-section-title">Biography</div>
+          <div class="bio-box"><p>${sanitize(player.bio)}</p></div>
+        </div>
+        <div class="profile-section">
+          <div class="profile-section-title">Chess Career</div>
+          <div class="career-box"><p>${sanitize(player.career || 'No career info added yet.')}</p></div>
+        </div>
+      </div>
+
+      <!-- ── TAB: STATS ── -->
+      <div class="profile-tab-panel" id="tab-stats">
+        <div class="player-stats-mini">
+          <div class="player-stat-mini">
+            <span class="player-stat-mini-value">${player.rating || '—'}</span>
+            <span class="player-stat-mini-label">FIDE Rating</span>
+          </div>
+          <div class="player-stat-mini">
+            <span class="player-stat-mini-value">${totalGames}</span>
+            <span class="player-stat-mini-label">Games</span>
+          </div>
+          <div class="player-stat-mini">
+            <span class="player-stat-mini-value">${views}</span>
+            <span class="player-stat-mini-label">Profile Views</span>
+          </div>
+        </div>
+        ${player.rating ? `
+        <div class="rating-chart-container">
+          <div class="rating-chart-header">
+            <span class="rating-chart-title">📈 Rating History</span>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="rating-chart-current">${player.rating}</span>
+              <span class="rating-chart-change rating-change-up">▲ Trending</span>
+            </div>
+          </div>
+          <canvas id="ratingChartCanvas" data-rating="${player.rating}"></canvas>
+        </div>` : '<p style="color:var(--text-dim);font-style:italic;">No rating data available.</p>'}
+      </div>
+
+      <!-- ── TAB: ACHIEVEMENTS ── -->
+      <div class="profile-tab-panel" id="tab-achievements">
+        <div class="profile-section">
+          <div class="profile-section-title">Achievements</div>
+          ${achievementsHTML}
+        </div>
+      </div>
+
+      <!-- ── TAB: GAMES ── -->
+      <div class="profile-tab-panel" id="tab-games">
+        <div class="profile-section">
+          <div class="profile-section-title">Best Games</div>
+          <div class="games-btn-grid">
+            ${player.games && player.games.length > 0
+              ? player.games.map((g, i) =>
+                  `<button class="game-btn" onclick="loadGame(${index}, ${i}); setActiveGameBtn(this)">${sanitize(g.name)}</button>`
+                ).join('')
+              : "<p style='color:var(--text-dim);font-style:italic;'>No games available yet.</p>"
+            }
+          </div>
+        </div>
+
+        <div class="profile-section" style="margin-top:20px;">
+          <div class="profile-section-title">Game Viewer</div>
+          <div class="game-container">
+            <div style="display:flex;gap:10px;align-items:center;">
+              <div id="evalBarContainer" style="width:25px;height:400px;background:#1a1a1a;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="evalBar" style="width:100%;height:50%;background:white;position:absolute;bottom:0;transition:height 0.3s;"></div>
+                <div id="evalScore" style="position:absolute;width:100%;text-align:center;font-size:10px;font-weight:bold;z-index:10;left:0;bottom:4px;color:#333;">0.00</div>
+              </div>
+              <div class="board-section">
+                <div id="blackLabel" class="player-label">
+                  <span class="color-dot black"></span>
+                  <span id="blackPlayerName">Black</span>
+                </div>
+                <div id="board" class="board"></div>
+                <div id="whiteLabel" class="player-label">
+                  <span class="color-dot white"></span>
+                  <span id="whitePlayerName">White</span>
+                </div>
+                <div class="controls">
+                  <button onclick="prevMove()">⏮</button>
+                  <button onclick="nextMove()">⏭</button>
+                </div>
+              </div>
+            </div>
+            <div class="moves-section"><div id="moves"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SHARE BAR ── -->
+      <div class="share-bar" style="margin-top:20px;">
+        <button class="share-btn" onclick="shareProfile(${index})">🔗 Share Profile</button>
+        <button class="share-btn" onclick="downloadProfilePGN(${index})">⬇️ Download PGN</button>
+        <button class="share-btn" onclick="sharePosition()">📋 Copy FEN</button>
+      </div>
+
+    </div>
+  `;
+
+  showTab('profile');
+
+  // init tabs
+  initProfileTabs();
+
+  // animate rating counter
+  if (player.rating) {
+    const ratingEl = document.getElementById('ratingCounter');
+    if (ratingEl) animateRating(ratingEl, player.rating);
+  }
+
+  // load first game
+  if (player.games && player.games.length > 0) {
+    setTimeout(() => loadGame(index, 0), 100);
+  }
+}
+
+// ─── ACTIVE GAME BUTTON ────────────────────────────────────────
+function setActiveGameBtn(btn) {
+  document.querySelectorAll('.game-btn').forEach(b => b.classList.remove('active-game'));
+  btn.classList.add('active-game');
+  // switch to games tab
+  document.querySelectorAll('.profile-tab-btn').forEach(b => {
+    if (b.dataset.tab === 'games') b.click();
+  });
+}
+
+// ─── RECENTLY VIEWED ON PLAYERS PAGE ──────────────────────────
+// inject recently viewed above player list
+const _origActivateTab = activateTab;
+function activateTab(tabId) {
+  _origActivateTab(tabId);
+  if (tabId === 'players') {
+    setTimeout(() => renderRecentlyViewed(), 200);
+  }
+}
+
+// inject recently viewed container into players section on load
+document.addEventListener('DOMContentLoaded', () => {
+  const playersSection = document.getElementById('players');
+  if (playersSection) {
+    const rvDiv = document.createElement('div');
+    rvDiv.id = 'recentlyViewedSection';
+    rvDiv.style.display = 'none';
+    rvDiv.innerHTML = `
+      <div class="recently-viewed" style="margin-bottom:16px;">
+        <div class="recently-viewed-title">🕐 Recently Viewed</div>
+        <div class="recently-viewed-list" id="recentlyViewedList"></div>
+      </div>
+    `;
+    playersSection.insertBefore(rvDiv, playersSection.firstChild);
   }
 });
