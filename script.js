@@ -128,6 +128,7 @@ function activateTab(tabId) {
     if (engineBoard) setTimeout(() => engineBoard.resize(), 100);
   }
   if (tabId === 'puzzles') initPuzzle();
+  if (tabId === 'players') setTimeout(() => renderRecentlyViewed(), 200);
 }
 
 // ─── PLAYERS ──────────────────────────────────────────────
@@ -212,10 +213,16 @@ function openProfile(index) {
   const player    = players[index];
   const container = document.getElementById('profileContent');
 
+  // track views
   trackView(player.id);
+  addToRecentlyViewed(player);
 
-  const achievementList = (player.achievements || '').split(',').filter(a => a.trim() !== '');
+  const achievementList  = (player.achievements || '').split(',').filter(a => a.trim() !== '');
   const achievementIcons = ['🏆','🥇','🎖️','⭐','🏅','👑','🎯','💎','🔥','✨'];
+  const totalGames       = player.games ? player.games.length : 0;
+  const views            = getViews(player.id);
+  const flagHTML         = getFlagHTML(player.name, player.bio);
+
   const achievementsHTML = achievementList.length > 0
     ? `<div class="achievements-grid">${achievementList.map((a, i) => `
         <div class="achievement-item">
@@ -227,76 +234,127 @@ function openProfile(index) {
   container.innerHTML = `
     <div class="card" style="cursor:default;">
 
+      <!-- PROFILE HEADER -->
       <div class="profile-header">
-        <img src="${sanitize(player.image || 'images/default.png')}" class="profile-avatar" loading="lazy" onerror="this.src='images/default.png'">
+        <img src="${sanitize(player.image || 'images/default.png')}"
+             class="profile-avatar" loading="lazy"
+             onerror="this.src='images/default.png'">
         <div class="profile-meta">
           <h2>
             ${player.title ? `<span class="title-badge title-${player.title}">${player.title}</span>` : ''}
             ${sanitize(player.name)}
           </h2>
           <div class="profile-badges">
-            ${player.rating ? `<span class="profile-rating-badge">⭐ FIDE ${player.rating}</span>` : ''}
+            ${player.rating ? `<span class="profile-rating-badge">⭐ FIDE <span id="ratingCounter">${player.rating}</span></span>` : ''}
+            ${flagHTML}
           </div>
         </div>
       </div>
 
-      <div class="profile-section">
-        <div class="profile-section-title">Biography</div>
-        <div class="bio-box"><p>${sanitize(player.bio)}</p></div>
+      <!-- TABS -->
+      <div class="profile-tabs">
+        <button class="profile-tab-btn tab-active" data-tab="bio">📖 Bio</button>
+        <button class="profile-tab-btn" data-tab="stats">📊 Stats</button>
+        <button class="profile-tab-btn" data-tab="achievements">🏆 Achievements</button>
+        <button class="profile-tab-btn" data-tab="games">🎮 Games</button>
       </div>
 
-      <div class="profile-section">
-        <div class="profile-section-title">Chess Career</div>
-        <div class="career-box"><p>${sanitize(player.career || 'No career info added yet.')}</p></div>
-      </div>
-
-      <div class="profile-section">
-        <div class="profile-section-title">Achievements</div>
-        ${achievementsHTML}
-      </div>
-
-      <div class="profile-section">
-        <div class="profile-section-title">Best Games</div>
-        <div class="games-btn-grid">
-          ${player.games && player.games.length > 0
-            ? player.games.map((g, i) => `<button class="game-btn" onclick="loadGame(${index}, ${i})">${sanitize(g.name)}</button>`).join('')
-            : "<p style='color:var(--text-dim);font-style:italic;'>No games available yet.</p>"
-          }
+      <!-- TAB: BIO -->
+      <div class="profile-tab-panel tab-panel-active" id="tab-bio">
+        <div class="profile-section">
+          <div class="profile-section-title">Biography</div>
+          <div class="bio-box"><p>${sanitize(player.bio)}</p></div>
+        </div>
+        <div class="profile-section">
+          <div class="profile-section-title">Chess Career</div>
+          <div class="career-box"><p>${sanitize(player.career || 'No career info added yet.')}</p></div>
         </div>
       </div>
 
-      <div class="share-bar">
+      <!-- TAB: STATS -->
+      <div class="profile-tab-panel" id="tab-stats">
+        <div class="player-stats-mini">
+          <div class="player-stat-mini">
+            <span class="player-stat-mini-value">${player.rating || '—'}</span>
+            <span class="player-stat-mini-label">FIDE Rating</span>
+          </div>
+          <div class="player-stat-mini">
+            <span class="player-stat-mini-value">${totalGames}</span>
+            <span class="player-stat-mini-label">Games</span>
+          </div>
+          <div class="player-stat-mini">
+            <span class="player-stat-mini-value">${views}</span>
+            <span class="player-stat-mini-label">Profile Views</span>
+          </div>
+        </div>
+        ${player.rating ? `
+        <div class="rating-chart-container">
+          <div class="rating-chart-header">
+            <span class="rating-chart-title">📈 Rating History</span>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="rating-chart-current">${player.rating}</span>
+              <span class="rating-chart-change rating-change-up">▲ Trending</span>
+            </div>
+          </div>
+          <canvas id="ratingChartCanvas" data-rating="${player.rating}"></canvas>
+        </div>` : '<p style="color:var(--text-dim);font-style:italic;">No rating data available.</p>'}
+      </div>
+
+      <!-- TAB: ACHIEVEMENTS -->
+      <div class="profile-tab-panel" id="tab-achievements">
+        <div class="profile-section">
+          <div class="profile-section-title">Achievements</div>
+          ${achievementsHTML}
+        </div>
+      </div>
+
+      <!-- TAB: GAMES -->
+      <div class="profile-tab-panel" id="tab-games">
+        <div class="profile-section">
+          <div class="profile-section-title">Best Games</div>
+          <div class="games-btn-grid">
+            ${player.games && player.games.length > 0
+              ? player.games.map((g, i) =>
+                  `<button class="game-btn" onclick="loadGame(${index}, ${i}); setActiveGameBtn(this)">${sanitize(g.name)}</button>`
+                ).join('')
+              : "<p style='color:var(--text-dim);font-style:italic;'>No games available yet.</p>"
+            }
+          </div>
+        </div>
+        <div class="profile-section" style="margin-top:20px;">
+          <div class="profile-section-title">Game Viewer</div>
+          <div class="game-container">
+            <div style="display:flex;gap:10px;align-items:center;">
+              <div id="evalBarContainer" style="width:25px;height:400px;background:#1a1a1a;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="evalBar" style="width:100%;height:50%;background:white;position:absolute;bottom:0;transition:height 0.3s;"></div>
+                <div id="evalScore" style="position:absolute;width:100%;text-align:center;font-size:10px;font-weight:bold;z-index:10;left:0;bottom:4px;color:#333;">0.00</div>
+              </div>
+              <div class="board-section">
+                <div id="blackLabel" class="player-label">
+                  <span class="color-dot black"></span>
+                  <span id="blackPlayerName">Black</span>
+                </div>
+                <div id="board" class="board"></div>
+                <div id="whiteLabel" class="player-label">
+                  <span class="color-dot white"></span>
+                  <span id="whitePlayerName">White</span>
+                </div>
+                <div class="controls">
+                  <button onclick="prevMove()">⏮</button>
+                  <button onclick="nextMove()">⏭</button>
+                </div>
+              </div>
+            </div>
+            <div class="moves-section"><div id="moves"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SHARE BAR -->
+      <div class="share-bar" style="margin-top:20px;">
         <button class="share-btn" onclick="shareProfile(${index})">🔗 Share Profile</button>
         <button class="share-btn" onclick="downloadProfilePGN(${index})">⬇️ Download PGN</button>
         <button class="share-btn" onclick="sharePosition()">📋 Copy FEN</button>
-      </div>
-
-      <div class="profile-section">
-        <div class="profile-section-title">Game Viewer</div>
-        <div class="game-container">
-          <div style="display:flex;gap:10px;align-items:center;">
-            <div id="evalBarContainer" style="width:25px;height:400px;background:#1a1a1a;border-radius:6px;overflow:hidden;position:relative;">
-              <div id="evalBar" style="width:100%;height:50%;background:white;position:absolute;bottom:0;transition:height 0.3s;"></div>
-              <div id="evalScore" style="position:absolute;width:100%;text-align:center;font-size:10px;font-weight:bold;z-index:10;left:0;bottom:4px;color:#333;">0.00</div>
-            </div>
-            <div class="board-section">
-              <div id="blackLabel" class="player-label">
-                <span class="color-dot black"></span>
-                <span id="blackPlayerName">Black</span>
-              </div>
-              <div id="board" class="board"></div>
-              <div id="whiteLabel" class="player-label">
-                <span class="color-dot white"></span>
-                <span id="whitePlayerName">White</span>
-              </div>
-              <div class="controls">
-                <button onclick="prevMove()">⏮</button>
-                <button onclick="nextMove()">⏭</button>
-              </div>
-            </div>
-          </div>
-          <div class="moves-section"><div id="moves"></div></div>
-        </div>
       </div>
 
     </div>
@@ -304,6 +362,16 @@ function openProfile(index) {
 
   showTab('profile');
 
+  // init tabs
+  initProfileTabs();
+
+  // animate rating counter
+  if (player.rating) {
+    const ratingEl = document.getElementById('ratingCounter');
+    if (ratingEl) animateRating(ratingEl, player.rating);
+  }
+
+  // load first game
   if (player.games && player.games.length > 0) {
     setTimeout(() => loadGame(index, 0), 100);
   }
@@ -3086,178 +3154,6 @@ function initProfileTabs() {
   });
 }
 
-// ─── OVERRIDE openProfile WITH TABBED VERSION ─────────────────
-const _openProfileOriginal = openProfile;
-
-function openProfile(index) {
-  const player    = players[index];
-  const container = document.getElementById('profileContent');
-
-  // track views
-  trackView(player.id);
-  addToRecentlyViewed(player);
-
-  const achievementList  = (player.achievements || '').split(',').filter(a => a.trim() !== '');
-  const achievementIcons = ['🏆','🥇','🎖️','⭐','🏅','👑','🎯','💎','🔥','✨'];
-  const totalGames       = player.games ? player.games.length : 0;
-  const views            = getViews(player.id);
-  const flagHTML         = getFlagHTML(player.name, player.bio);
-
-  const achievementsHTML = achievementList.length > 0
-    ? `<div class="achievements-grid">${achievementList.map((a, i) => `
-        <div class="achievement-item">
-          <span class="achievement-icon">${achievementIcons[i % achievementIcons.length]}</span>
-          <span class="achievement-text">${sanitize(a.trim())}</span>
-        </div>`).join('')}</div>`
-    : `<p style="color:var(--text-dim);font-style:italic;">No achievements listed yet.</p>`;
-
-  container.innerHTML = `
-    <div class="card" style="cursor:default;">
-
-      <!-- ── PROFILE HEADER ── -->
-      <div class="profile-header">
-        <img src="${sanitize(player.image || 'images/default.png')}"
-             class="profile-avatar" loading="lazy"
-             onerror="this.src='images/default.png'">
-        <div class="profile-meta">
-          <h2>
-            ${player.title ? `<span class="title-badge title-${player.title}">${player.title}</span>` : ''}
-            ${sanitize(player.name)}
-          </h2>
-          <div class="profile-badges">
-            ${player.rating ? `<span class="profile-rating-badge">⭐ FIDE <span id="ratingCounter">${player.rating}</span></span>` : ''}
-            ${flagHTML}
-          </div>
-        </div>
-      </div>
-
-      <!-- ── TABS ── -->
-      <div class="profile-tabs">
-        <button class="profile-tab-btn tab-active" data-tab="bio">📖 Bio</button>
-        <button class="profile-tab-btn" data-tab="stats">📊 Stats</button>
-        <button class="profile-tab-btn" data-tab="achievements">🏆 Achievements</button>
-        <button class="profile-tab-btn" data-tab="games">🎮 Games</button>
-      </div>
-
-      <!-- ── TAB: BIO ── -->
-      <div class="profile-tab-panel tab-panel-active" id="tab-bio">
-        <div class="profile-section">
-          <div class="profile-section-title">Biography</div>
-          <div class="bio-box"><p>${sanitize(player.bio)}</p></div>
-        </div>
-        <div class="profile-section">
-          <div class="profile-section-title">Chess Career</div>
-          <div class="career-box"><p>${sanitize(player.career || 'No career info added yet.')}</p></div>
-        </div>
-      </div>
-
-      <!-- ── TAB: STATS ── -->
-      <div class="profile-tab-panel" id="tab-stats">
-        <div class="player-stats-mini">
-          <div class="player-stat-mini">
-            <span class="player-stat-mini-value">${player.rating || '—'}</span>
-            <span class="player-stat-mini-label">FIDE Rating</span>
-          </div>
-          <div class="player-stat-mini">
-            <span class="player-stat-mini-value">${totalGames}</span>
-            <span class="player-stat-mini-label">Games</span>
-          </div>
-          <div class="player-stat-mini">
-            <span class="player-stat-mini-value">${views}</span>
-            <span class="player-stat-mini-label">Profile Views</span>
-          </div>
-        </div>
-        ${player.rating ? `
-        <div class="rating-chart-container">
-          <div class="rating-chart-header">
-            <span class="rating-chart-title">📈 Rating History</span>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span class="rating-chart-current">${player.rating}</span>
-              <span class="rating-chart-change rating-change-up">▲ Trending</span>
-            </div>
-          </div>
-          <canvas id="ratingChartCanvas" data-rating="${player.rating}"></canvas>
-        </div>` : '<p style="color:var(--text-dim);font-style:italic;">No rating data available.</p>'}
-      </div>
-
-      <!-- ── TAB: ACHIEVEMENTS ── -->
-      <div class="profile-tab-panel" id="tab-achievements">
-        <div class="profile-section">
-          <div class="profile-section-title">Achievements</div>
-          ${achievementsHTML}
-        </div>
-      </div>
-
-      <!-- ── TAB: GAMES ── -->
-      <div class="profile-tab-panel" id="tab-games">
-        <div class="profile-section">
-          <div class="profile-section-title">Best Games</div>
-          <div class="games-btn-grid">
-            ${player.games && player.games.length > 0
-              ? player.games.map((g, i) =>
-                  `<button class="game-btn" onclick="loadGame(${index}, ${i}); setActiveGameBtn(this)">${sanitize(g.name)}</button>`
-                ).join('')
-              : "<p style='color:var(--text-dim);font-style:italic;'>No games available yet.</p>"
-            }
-          </div>
-        </div>
-
-        <div class="profile-section" style="margin-top:20px;">
-          <div class="profile-section-title">Game Viewer</div>
-          <div class="game-container">
-            <div style="display:flex;gap:10px;align-items:center;">
-              <div id="evalBarContainer" style="width:25px;height:400px;background:#1a1a1a;border-radius:6px;overflow:hidden;position:relative;">
-                <div id="evalBar" style="width:100%;height:50%;background:white;position:absolute;bottom:0;transition:height 0.3s;"></div>
-                <div id="evalScore" style="position:absolute;width:100%;text-align:center;font-size:10px;font-weight:bold;z-index:10;left:0;bottom:4px;color:#333;">0.00</div>
-              </div>
-              <div class="board-section">
-                <div id="blackLabel" class="player-label">
-                  <span class="color-dot black"></span>
-                  <span id="blackPlayerName">Black</span>
-                </div>
-                <div id="board" class="board"></div>
-                <div id="whiteLabel" class="player-label">
-                  <span class="color-dot white"></span>
-                  <span id="whitePlayerName">White</span>
-                </div>
-                <div class="controls">
-                  <button onclick="prevMove()">⏮</button>
-                  <button onclick="nextMove()">⏭</button>
-                </div>
-              </div>
-            </div>
-            <div class="moves-section"><div id="moves"></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── SHARE BAR ── -->
-      <div class="share-bar" style="margin-top:20px;">
-        <button class="share-btn" onclick="shareProfile(${index})">🔗 Share Profile</button>
-        <button class="share-btn" onclick="downloadProfilePGN(${index})">⬇️ Download PGN</button>
-        <button class="share-btn" onclick="sharePosition()">📋 Copy FEN</button>
-      </div>
-
-    </div>
-  `;
-
-  showTab('profile');
-
-  // init tabs
-  initProfileTabs();
-
-  // animate rating counter
-  if (player.rating) {
-    const ratingEl = document.getElementById('ratingCounter');
-    if (ratingEl) animateRating(ratingEl, player.rating);
-  }
-
-  // load first game
-  if (player.games && player.games.length > 0) {
-    setTimeout(() => loadGame(index, 0), 100);
-  }
-}
-
 // ─── ACTIVE GAME BUTTON ────────────────────────────────────────
 function setActiveGameBtn(btn) {
   document.querySelectorAll('.game-btn').forEach(b => b.classList.remove('active-game'));
@@ -3268,29 +3164,401 @@ function setActiveGameBtn(btn) {
   });
 }
 
-// ─── RECENTLY VIEWED ON PLAYERS PAGE ──────────────────────────
-// inject recently viewed above player list
-const _origActivateTab = activateTab;
-function activateTab(tabId) {
-  _origActivateTab(tabId);
-  if (tabId === 'players') {
-    setTimeout(() => renderRecentlyViewed(), 200);
+
+
+// ══════════════════════════════════════════════════════════════
+// ─── GROUP 3: GAMES & ENGINE ─────────────────────────────────
+// Annotations · Game Timer · Replay Speed · Best Move Highlight
+// ══════════════════════════════════════════════════════════════
+
+// ─── MOVE ANNOTATIONS ─────────────────────────────────────────
+const ANNOTATIONS = {
+  '!!': { label: '!!', cls: 'ann-brilliant',  btn: 'ann-brilliant-btn',  name: '!! Brilliant' },
+  '!':  { label: '!',  cls: 'ann-great',      btn: 'ann-great-btn',      name: '! Great'      },
+  '!?': { label: '!?', cls: 'ann-good',       btn: 'ann-good-btn',       name: '!? Interesting'},
+  '?!': { label: '?!', cls: 'ann-inaccuracy', btn: 'ann-inaccuracy-btn', name: '?! Inaccuracy'},
+  '?':  { label: '?',  cls: 'ann-mistake',    btn: 'ann-mistake-btn',    name: '? Mistake'    },
+  '??': { label: '??', cls: 'ann-blunder',    btn: 'ann-blunder-btn',    name: '?? Blunder'   },
+};
+
+let moveAnnotations  = {};  // { moveIndex: '!!' }
+let moveComments     = {};  // { moveIndex: 'text' }
+
+function annotateMove(symbol) {
+  if (!currentBoard) return;
+  const idx = currentBoard.moveIndex - 1;
+  if (idx < 0) { toast('Make a move first', 'info'); return; }
+  if (symbol === 'clear') {
+    delete moveAnnotations[idx];
+    delete moveComments[idx];
+  } else {
+    moveAnnotations[idx] = symbol;
+  }
+  renderMoves();
+  toast(`Move annotated: ${symbol || 'cleared'}`, 'success');
+}
+
+function addMoveComment(idx, text) {
+  if (text) moveComments[idx] = text;
+  else delete moveComments[idx];
+  renderMoves();
+}
+
+// Override renderMoves to support annotations
+const _renderMovesOriginal = renderMoves;
+function renderMoves() {
+  const movesDiv = document.getElementById('moves');
+  if (!currentBoard || !movesDiv) return;
+
+  const fragment = document.createDocumentFragment();
+  const moves    = currentBoard.moves;
+
+  for (let i = 0; i < moves.length; i += 2) {
+    const row    = document.createElement('div');
+    const number = document.createElement('span');
+    number.className = 'move-number';
+    number.innerText = `${Math.floor(i / 2) + 1}.`;
+    row.appendChild(number);
+
+    [0, 1].forEach(offset => {
+      const mi = i + offset;
+      if (!moves[mi]) return;
+      const span = document.createElement('span');
+      span.className = 'move';
+      if (mi === currentBoard.moveIndex - 1) span.classList.add('active');
+      span.onclick = () => goToMove(mi);
+
+      const ann = moveAnnotations[mi];
+      if (ann && ANNOTATIONS[ann]) {
+        span.classList.add('annotated');
+        span.innerHTML = moves[mi] + `<span class="move-annotation ${ANNOTATIONS[ann].cls}">${ann}</span>`;
+      } else {
+        span.innerText = moves[mi];
+      }
+      row.appendChild(span);
+
+      // comment below move pair
+      if (offset === 1 && moveComments[mi]) {
+        const comment = document.createElement('span');
+        comment.className = 'move-comment';
+        comment.innerText = moveComments[mi];
+        row.appendChild(comment);
+      }
+    });
+
+    fragment.appendChild(row);
+  }
+
+  movesDiv.innerHTML = '';
+  movesDiv.appendChild(fragment);
+}
+
+// ─── REPLAY AUTO-PLAY ─────────────────────────────────────────
+let replayInterval = null;
+let replaySpeed    = 1000; // ms per move
+let isReplaying    = false;
+
+function setReplaySpeed(ms, btn) {
+  replaySpeed = ms;
+  document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('speed-active'));
+  if (btn) btn.classList.add('speed-active');
+  // restart if already playing
+  if (isReplaying) { stopReplay(); startReplay(); }
+}
+
+function startReplay() {
+  if (!currentBoard) return;
+  isReplaying = true;
+  const playBtn = document.getElementById('replayPlayBtn');
+  if (playBtn) { playBtn.innerText = '⏸ Pause'; playBtn.classList.add('playing'); }
+
+  replayInterval = setInterval(() => {
+    if (currentBoard.moveIndex >= currentBoard.moves.length) {
+      stopReplay();
+      return;
+    }
+    nextMove();
+  }, replaySpeed);
+}
+
+function stopReplay() {
+  isReplaying = false;
+  clearInterval(replayInterval);
+  replayInterval = null;
+  const playBtn = document.getElementById('replayPlayBtn');
+  if (playBtn) { playBtn.innerText = '▶ Auto Play'; playBtn.classList.remove('playing'); }
+}
+
+function toggleReplay() {
+  if (isReplaying) stopReplay();
+  else {
+    if (currentBoard && currentBoard.moveIndex >= currentBoard.moves.length) {
+      // restart from beginning
+      const chess = new Chess();
+      currentBoard.chess     = chess;
+      currentBoard.moveIndex = 0;
+      currentBoard.board.position('start');
+      renderMoves();
+    }
+    startReplay();
   }
 }
 
-// inject recently viewed container into players section on load
-document.addEventListener('DOMContentLoaded', () => {
-  const playersSection = document.getElementById('players');
-  if (playersSection) {
-    const rvDiv = document.createElement('div');
-    rvDiv.id = 'recentlyViewedSection';
-    rvDiv.style.display = 'none';
-    rvDiv.innerHTML = `
-      <div class="recently-viewed" style="margin-bottom:16px;">
-        <div class="recently-viewed-title">🕐 Recently Viewed</div>
-        <div class="recently-viewed-list" id="recentlyViewedList"></div>
-      </div>
-    `;
-    playersSection.insertBefore(rvDiv, playersSection.firstChild);
+// ─── GAME CLOCK / TIMER ───────────────────────────────────────
+let whiteTime     = 10 * 60; // seconds
+let blackTime     = 10 * 60;
+let clockInterval = null;
+let clockRunning  = false;
+let selectedClockTime = 10 * 60;
+
+const CLOCK_OPTIONS = [
+  { label: '1 min',  seconds: 60       },
+  { label: '3 min',  seconds: 3 * 60   },
+  { label: '5 min',  seconds: 5 * 60   },
+  { label: '10 min', seconds: 10 * 60  },
+  { label: '15 min', seconds: 15 * 60  },
+  { label: '30 min', seconds: 30 * 60  },
+];
+
+function formatClock(seconds) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function updateClockDisplay() {
+  const wEl = document.getElementById('whiteClockTime');
+  const bEl = document.getElementById('blackClockTime');
+  if (wEl) {
+    wEl.innerText = formatClock(whiteTime);
+    wEl.className = 'clock-time' + (whiteTime <= 30 ? ' clock-low-text' : '');
+    wEl.closest('.game-clock')?.classList.toggle('clock-low', whiteTime <= 30);
   }
-});
+  if (bEl) {
+    bEl.innerText = formatClock(blackTime);
+    bEl.className = 'clock-time' + (blackTime <= 30 ? ' clock-low-text' : '');
+    bEl.closest('.game-clock')?.classList.toggle('clock-low', blackTime <= 30);
+  }
+}
+
+function startClock(turn) {
+  clearInterval(clockInterval);
+  clockRunning = true;
+
+  // update active state
+  document.getElementById('whiteClockBox')?.classList.toggle('clock-active', turn === 'w');
+  document.getElementById('blackClockBox')?.classList.toggle('clock-active', turn === 'b');
+
+  clockInterval = setInterval(() => {
+    if (turn === 'w') {
+      whiteTime--;
+      if (whiteTime <= 0) { whiteTime = 0; clearInterval(clockInterval); toast('⏰ White ran out of time!', 'error'); }
+    } else {
+      blackTime--;
+      if (blackTime <= 0) { blackTime = 0; clearInterval(clockInterval); toast('⏰ Black ran out of time!', 'error'); }
+    }
+    updateClockDisplay();
+  }, 1000);
+}
+
+function stopClock() {
+  clearInterval(clockInterval);
+  clockRunning = false;
+}
+
+function resetClock() {
+  stopClock();
+  whiteTime = selectedClockTime;
+  blackTime = selectedClockTime;
+  updateClockDisplay();
+  document.getElementById('whiteClockBox')?.classList.remove('clock-active', 'clock-low');
+  document.getElementById('blackClockBox')?.classList.remove('clock-active', 'clock-low');
+}
+
+function selectClockTime(seconds, btn) {
+  selectedClockTime = seconds;
+  whiteTime = seconds;
+  blackTime = seconds;
+  document.querySelectorAll('.clock-option-btn').forEach(b => b.classList.remove('clock-selected'));
+  if (btn) btn.classList.add('clock-selected');
+  updateClockDisplay();
+  stopClock();
+}
+
+// ─── INJECT REPLAY + ANNOTATION CONTROLS INTO PROFILE ─────────
+const _loadGameOriginal = loadGame;
+function loadGame(playerIndex, gameIndex) {
+  stopReplay();
+  moveAnnotations = {};
+  moveComments    = {};
+  _loadGameOriginal(playerIndex, gameIndex);
+
+  // inject replay controls after board loads
+  setTimeout(() => {
+    injectReplayControls();
+    injectAnnotationEditor();
+  }, 400);
+}
+
+function injectReplayControls() {
+  if (document.getElementById('replayControlsBar')) return;
+  const controls = document.querySelector('#tab-games .controls');
+  if (!controls) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'replayControlsBar';
+  bar.className = 'replay-controls';
+  bar.innerHTML = `
+    <button class="replay-btn" id="replayPlayBtn" onclick="toggleReplay()">▶ Auto Play</button>
+    <div class="replay-speed-btns">
+      <span class="replay-controls" style="background:none;border:none;padding:0;"><label>Speed:</label></span>
+      <button class="speed-btn" onclick="setReplaySpeed(2000, this)">0.5x</button>
+      <button class="speed-btn speed-active" onclick="setReplaySpeed(1000, this)">1x</button>
+      <button class="speed-btn" onclick="setReplaySpeed(500, this)">2x</button>
+      <button class="speed-btn" onclick="setReplaySpeed(200, this)">5x</button>
+    </div>
+  `;
+  controls.after(bar);
+}
+
+function injectAnnotationEditor() {
+  if (document.getElementById('annotationEditorBar')) return;
+  const movesSection = document.querySelector('#tab-games .moves-section');
+  if (!movesSection) return;
+
+  const editor = document.createElement('div');
+  editor.id = 'annotationEditorBar';
+  editor.className = 'annotation-editor';
+  editor.innerHTML = `
+    <div class="annotation-editor-title">✏️ Annotate Current Move</div>
+    <div class="annotation-btns">
+      <button class="ann-btn ann-brilliant-btn"  onclick="annotateMove('!!')">!! Brilliant</button>
+      <button class="ann-btn ann-great-btn"      onclick="annotateMove('!')">! Great</button>
+      <button class="ann-btn ann-good-btn"       onclick="annotateMove('!?')">!? Interesting</button>
+      <button class="ann-btn ann-inaccuracy-btn" onclick="annotateMove('?!')">?! Inaccuracy</button>
+      <button class="ann-btn ann-mistake-btn"    onclick="annotateMove('?')">? Mistake</button>
+      <button class="ann-btn ann-blunder-btn"    onclick="annotateMove('??')">?? Blunder</button>
+      <button class="ann-btn ann-clear-btn"      onclick="annotateMove('clear')">✕ Clear</button>
+    </div>
+  `;
+  movesSection.after(editor);
+}
+
+// ─── INJECT CLOCK INTO PLAY VS COMPUTER ───────────────────────
+const _startGameOriginal = startGame;
+function startGame() {
+  _startGameOriginal();
+  setTimeout(() => injectGameClock(), 300);
+}
+
+function injectGameClock() {
+  if (document.getElementById('gameClockBar')) return;
+  const statusBar = document.querySelector('.play-status-bar');
+  if (!statusBar) return;
+
+  const clockBar = document.createElement('div');
+  clockBar.id = 'gameClockBar';
+  clockBar.style.marginBottom = '10px';
+  clockBar.innerHTML = `
+    <div class="clock-selector">
+      ${CLOCK_OPTIONS.map((o, i) => `
+        <button class="clock-option-btn ${i === 3 ? 'clock-selected' : ''}"
+                onclick="selectClockTime(${o.seconds}, this)">${o.label}</button>
+      `).join('')}
+    </div>
+    <div class="game-clocks">
+      <div class="game-clock" id="blackClockBox">
+        <div class="clock-label">♚ Computer</div>
+        <div class="clock-time" id="blackClockTime">${formatClock(selectedClockTime)}</div>
+      </div>
+      <div class="game-clock" id="whiteClockBox">
+        <div class="clock-label">♔ You</div>
+        <div class="clock-time" id="whiteClockTime">${formatClock(selectedClockTime)}</div>
+      </div>
+    </div>
+  `;
+  statusBar.before(clockBar);
+
+  // reset clock values to selected
+  whiteTime = selectedClockTime;
+  blackTime = selectedClockTime;
+  updateClockDisplay();
+  // start white clock if playing as white
+  if (playColor === 'white') startClock('w');
+  else startClock('b');
+}
+
+// ─── HOOK CLOCK INTO PLAY MOVES ───────────────────────────────
+const _handlePlayDropOriginal = handlePlayDrop;
+function handlePlayDrop(source, target) {
+  const result = _handlePlayDropOriginal(source, target);
+  if (result !== 'snapback' && clockRunning) {
+    // switch clock to computer's turn
+    startClock(playColor === 'white' ? 'b' : 'w');
+  }
+  return result;
+}
+
+// hook clock back to player after computer moves
+const _computerPlayMoveOriginal = computerPlayMove;
+function computerPlayMove() {
+  _computerPlayMoveOriginal();
+}
+
+// patch playEngine onmessage to switch clock after computer move
+const _initPlayEngineOriginal = initPlayEngine;
+function initPlayEngine() {
+  _initPlayEngineOriginal();
+  // re-patch onmessage to switch clock
+  if (playEngine) {
+    const origMsg = playEngine.onmessage;
+    playEngine.onmessage = function(e) {
+      origMsg.call(this, e);
+      if (e.data.startsWith('bestmove') && clockRunning) {
+        startClock(playColor === 'white' ? 'w' : 'b');
+      }
+    };
+  }
+}
+
+// stop clock on game end
+const _showPlayResultOriginal = showPlayResult;
+function showPlayResult() {
+  stopClock();
+  _showPlayResultOriginal();
+}
+
+// reset clock on new game
+const _resetPlayGameOriginal = resetPlayGame;
+function resetPlayGame() {
+  stopClock();
+  const clockBar = document.getElementById('gameClockBar');
+  if (clockBar) clockBar.remove();
+  _resetPlayGameOriginal();
+}
+
+// ─── BEST MOVE DISPLAY IN ENGINE ──────────────────────────────
+function showBestMoveBar(from, to) {
+  let bar = document.getElementById('bestMoveBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'bestMoveBar';
+    bar.className = 'best-move-bar';
+    const pvLine = document.getElementById('pvLine');
+    if (pvLine) pvLine.after(bar);
+  }
+  bar.innerHTML = `
+    <span class="best-move-label">⚡ Best Move</span>
+    <span class="best-move-uci">${from.toUpperCase()} → ${to.toUpperCase()}</span>
+    <span style="font-size:12px;color:var(--text-dim);">Suggested by Stockfish</span>
+  `;
+}
+
+// patch drawArrow to also show best move bar
+const _drawArrowOriginal = drawArrow;
+function drawArrow(from, to) {
+  _drawArrowOriginal(from, to);
+  showBestMoveBar(from, to);
+}
+
+toast('Group 3 loaded: Annotations, Timer & Replay ♟', 'info');
