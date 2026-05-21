@@ -599,6 +599,61 @@
   </div>
 </section>
 
+<!-- ─── MOBILE BOTTOM NAV ──────────────────────────────────── -->
+<nav id="mobileNav">
+  <div class="mob-nav-inner">
+    <button class="mob-nav-btn mob-active" onclick="showTab('home'); setMobActive(this)">
+      <span class="mob-nav-icon">🏠</span>
+      <span>Home</span>
+    </button>
+    <button class="mob-nav-btn" onclick="showTab('players'); setMobActive(this)">
+      <span class="mob-nav-icon">♟</span>
+      <span>Players</span>
+    </button>
+    <button class="mob-nav-btn" onclick="showTab('articles'); setMobActive(this)">
+      <span class="mob-nav-icon">📰</span>
+      <span>Articles</span>
+    </button>
+    <button class="mob-nav-btn" onclick="showTab('play'); setMobActive(this)">
+      <span class="mob-nav-icon">▶</span>
+      <span>Play</span>
+    </button>
+    <button class="mob-nav-btn" onclick="showTab('puzzles'); setMobActive(this)">
+      <span class="mob-nav-icon">🧩</span>
+      <span>Puzzles</span>
+    </button>
+    <button class="mob-nav-btn" onclick="showTab('engine'); setMobActive(this)">
+      <span class="mob-nav-icon">🔍</span>
+      <span>Engine</span>
+    </button>
+  </div>
+</nav>
+
+<!-- ─── PULL TO REFRESH ────────────────────────────────────── -->
+<div id="pullRefreshIndicator">
+  <span class="pull-icon">↓</span>
+  <span id="pullRefreshText">Pull to refresh</span>
+</div>
+
+<!-- ─── NETWORK BANNER ─────────────────────────────────────── -->
+<div id="networkBanner"></div>
+
+<!-- ─── PWA INSTALL BANNER ─────────────────────────────────── -->
+<div id="pwaInstallBanner">
+  <div class="pwa-banner-inner">
+    <div class="pwa-icon">♟</div>
+    <div class="pwa-text">
+      <strong>Install Chess Legends Hub</strong>
+      <span>Add to home screen for the best experience</span>
+    </div>
+    <button class="pwa-install-btn" id="pwaInstallBtn">Install</button>
+    <button class="pwa-dismiss-btn" onclick="dismissPWA()">✕</button>
+  </div>
+</div>
+
+<!-- ─── SCROLL TO TOP ──────────────────────────────────────── -->
+<button id="scrollTopBtn" onclick="scrollToTop()" title="Back to top">↑</button>
+
 <script src="script.js"></script>
 </body>
 </html>
