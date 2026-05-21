@@ -167,11 +167,11 @@
     <textarea id="articleContent" placeholder="Article Content"></textarea>
     <select id="articleCategory" style="width:100%; margin:5px 0; padding:8px; border-radius:5px; border:none; background:#1e293b; color:#e2e8f0; cursor:pointer;">
       <option value="">No Category</option>
-      <option value="openings"> Openings</option>
-      <option value="tactics"> Tactics</option>
-      <option value="strategy"> Strategy</option>
-      <option value="history"> History</option>
-      <option value="news">News</option>
+      <option value="openings">♟ Openings</option>
+      <option value="tactics">⚔️ Tactics</option>
+      <option value="strategy">🧠 Strategy</option>
+      <option value="history">📜 History</option>
+      <option value="news">📰 News</option>
     </select>
     <input type="file" id="articleImage" accept="image/*">
     <button onclick="addArticle()">Publish Article</button>
@@ -231,7 +231,7 @@
     <h2>Platform Statistics</h2>
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-icon"></div>
+        <div class="stat-icon">♟</div>
         <div class="stat-info">
           <span id="statPlayers">0</span>
           <label>Chess Legends</label>
@@ -245,14 +245,14 @@
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon"></div>
+        <div class="stat-icon">📰</div>
         <div class="stat-info">
           <span id="statArticles">0</span>
           <label>Articles Published</label>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon"></div>
+        <div class="stat-icon">📚</div>
         <div class="stat-info">
           <span id="statPDFs">0</span>
           <label>PDFs Available</label>
@@ -261,7 +261,7 @@
     </div>
   </div>
   <div class="home-section">
-    <h2> Rating Leaderboard</h2>
+    <h2>🏆 Rating Leaderboard</h2>
     <div id="leaderboard"></div>
   </div>
   <div class="home-section">
@@ -288,19 +288,22 @@
 
 <!-- ─── ARTICLES ───────────────────────────────────────────── -->
 <section id="articles">
-  <div class="card">
-    <h2>Latest Articles</h2>
+  <div class="card" style="cursor:default;">
+    <div class="article-page-header">
+      <h2>Latest Articles</h2>
+      <span class="article-count-badge" id="articleCountBadge">0 Articles</span>
+    </div>
     <div class="article-search-wrapper">
       <span class="search-icon">🔍</span>
       <input type="text" id="articleSearch" placeholder="Search articles..." oninput="debouncedRenderArticlesPage()">
     </div>
     <div class="article-filters">
       <button class="article-filter-btn active" onclick="setArticleCategory('all', this)">All</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('openings', this)"> Openings</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('tactics', this)"> Tactics</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('strategy', this)"> Strategy</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('history', this)"> History</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('news', this)"> News</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('openings', this)">♟ Openings</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('tactics', this)">⚔️ Tactics</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('strategy', this)">🧠 Strategy</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('history', this)">📜 History</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('news', this)">📰 News</button>
     </div>
     <div id="articlesPageContainer" class="articles-grid"></div>
   </div>
@@ -381,8 +384,25 @@
 
 <!-- ─── ENGINE ────────────────────────────────────────────── -->
 <section id="engine">
-  <div class="card">
-    <h2>Chess Engine Analysis</h2>
+  <div class="card" style="cursor:default;">
+    <h2>♟ Chess Engine Analysis</h2>
+
+    <!-- Controls Bar -->
+    <div class="engine-controls-bar">
+      <button class="engine-ctrl-btn" onclick="prevEngineMove()">⏮ Prev</button>
+      <button class="engine-ctrl-btn" onclick="nextEngineMove()">Next ⏭</button>
+      <button class="engine-ctrl-btn btn-primary" onclick="flipEngineBoard()">🔄 Flip</button>
+      <button class="engine-ctrl-btn btn-danger" onclick="resetEngineBoard()">↺ Reset</button>
+      <button class="engine-ctrl-btn" onclick="saveAnalysis()">💾 Export</button>
+      <div id="engineThinking" class="engine-thinking" style="display:none;">
+        <span>Engine thinking</span>
+        <div class="thinking-dots">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main engine layout -->
     <div class="engine-container">
       <div id="engineEvalWrapper">
         <div id="engineEvalBar">
@@ -394,39 +414,55 @@
           <canvas id="arrowCanvas" width="400" height="400"></canvas>
         </div>
       </div>
-      <div>
-        <div class="controls">
-          <button onclick="prevEngineMove()">⏮</button>
-          <button onclick="nextEngineMove()">⏭</button>
-          <button onclick="resetEngineBoard()">Reset</button>
-          <button onclick="flipEngineBoard()">🔄 Flip</button>
-        </div>
-        <div id="engineStats">
-          Depth: <span id="engineDepth">—</span>
-          &nbsp; NPS: <span id="engineNps">—</span>
-          &nbsp; Nodes: <span id="engineNodes">—</span>
-        </div>
-      </div>
-      <div class="moves-section" id="engineMoves" style="max-height:400px; overflow-y:auto; width:200px;"></div>
+      <div id="engineMoves" style="max-height:400px; overflow-y:auto; width:200px;"></div>
     </div>
-    <div id="multiPV"></div>
-    <div id="pvLine"><span>Best Line:</span> —</div>
+
+    <!-- Stats Bar -->
+    <div id="engineStats">
+      <div class="engine-stat-item">
+        <span class="engine-stat-label">Depth</span>
+        <span class="engine-stat-value" id="engineDepth">—</span>
+      </div>
+      <div class="engine-stat-item">
+        <span class="engine-stat-label">NPS</span>
+        <span class="engine-stat-value" id="engineNps">—</span>
+      </div>
+      <div class="engine-stat-item">
+        <span class="engine-stat-label">Nodes</span>
+        <span class="engine-stat-value" id="engineNodes">—</span>
+      </div>
+      <div class="engine-stat-item">
+        <span class="engine-stat-label">Score</span>
+        <span class="engine-stat-value" id="engineScoreDisplay">—</span>
+      </div>
+    </div>
+
+    <!-- Opening -->
     <div id="openingDisplay">
+      <span class="opening-book-icon">📖</span>
       <span id="openingName">Opening: —</span>
     </div>
+
+    <!-- Best Line -->
+    <div id="pvLine"><span>Best Line</span></div>
+
+    <!-- Multi PV -->
+    <div id="multiPV"></div>
+
+    <!-- Eval Graph -->
     <div id="evalGraphContainer">
-      <h4>Evaluation Graph</h4>
+      <h4>📊 Evaluation Graph</h4>
       <canvas id="evalGraph" width="600" height="120"></canvas>
     </div>
+
+    <!-- Load PGN / FEN -->
     <div id="gameManagement">
       <h4>Load PGN</h4>
       <textarea id="pgnInput" rows="3" placeholder="Paste PGN here..."></textarea>
-      <button onclick="loadPGN()">Load PGN</button>
+      <button onclick="loadPGN()">▶ Load PGN</button>
       <h4>Load FEN</h4>
-      <input type="text" id="fenInput" placeholder="Paste FEN here...">
-      <button onclick="loadFEN()">Load FEN</button>
-      <h4>Export</h4>
-      <button onclick="saveAnalysis()">💾 Save Analysis</button>
+      <input type="text" id="fenInput" placeholder="Paste FEN string here...">
+      <button onclick="loadFEN()">▶ Load FEN</button>
     </div>
   </div>
 </section>
