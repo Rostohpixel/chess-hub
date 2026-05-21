@@ -387,34 +387,45 @@ function loadGame(playerIndex, gameIndex) {
   const moves = game.history();
   const chess = new Chess();
 
+  // Switch to games tab first so #board element is visible in DOM
+  const gamesTab = document.querySelector('.profile-tab-btn[data-tab="games"]');
+  if (gamesTab && !gamesTab.classList.contains('tab-active')) {
+    gamesTab.click();
+  }
+
   if (currentBoard && currentBoard.board) currentBoard.board.destroy();
 
-  const board = Chessboard('board', {
-    position: 'start',
-    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
-  });
-
-  currentBoard = { chess, board, moves, moveIndex: 0 };
-
-  const white      = gameData.white_player || 'White';
-  const black      = gameData.black_player || 'Black';
-  const whiteTitle = gameData.white_title  || '';
-  const blackTitle = gameData.black_title  || '';
-  const whiteEl    = document.getElementById('whitePlayerName');
-  const blackEl    = document.getElementById('blackPlayerName');
-  const whiteBadge = whiteTitle ? `<span class="title-badge title-${whiteTitle}">${whiteTitle}</span> ` : '';
-  const blackBadge = blackTitle ? `<span class="title-badge title-${blackTitle}">${blackTitle}</span> ` : '';
-  if (whiteEl) whiteEl.innerHTML = whiteBadge + sanitize(white);
-  if (blackEl) blackEl.innerHTML = blackBadge + sanitize(black);
-
-  renderMoves();
-  updateBoard();
-
+  // Wait a tick for tab to render before initializing board
   setTimeout(() => {
-    board.resize();
-    initProfileEngine();
-    analyzeProfilePosition();
-  }, 300);
+    const board = Chessboard('board', {
+      position: 'start',
+      pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+    });
+
+    currentBoard = { chess, board, moves, moveIndex: 0 };
+
+    const white      = gameData.white_player || 'White';
+    const black      = gameData.black_player || 'Black';
+    const whiteTitle = gameData.white_title  || '';
+    const blackTitle = gameData.black_title  || '';
+    const whiteEl    = document.getElementById('whitePlayerName');
+    const blackEl    = document.getElementById('blackPlayerName');
+    const whiteBadge = whiteTitle ? `<span class="title-badge title-${whiteTitle}">${whiteTitle}</span> ` : '';
+    const blackBadge = blackTitle ? `<span class="title-badge title-${blackTitle}">${blackTitle}</span> ` : '';
+    if (whiteEl) whiteEl.innerHTML = whiteBadge + sanitize(white);
+    if (blackEl) blackEl.innerHTML = blackBadge + sanitize(black);
+
+    renderMoves();
+    updateBoard();
+
+    setTimeout(() => {
+      board.resize();
+      initProfileEngine();
+      analyzeProfilePosition();
+      injectReplayControls();
+      injectAnnotationEditor();
+    }, 300);
+  }, 80); // end of tab-switch delay
 }
 
 function nextMove() {
@@ -2292,6 +2303,7 @@ function handlePuzzleDrop(source, target) {
     launchConfetti();
     document.getElementById('puzzleNextBtn').classList.remove('hidden');
     toast('Puzzle solved! 🧩', 'success');
+    incrementStreak();
   } else {
     fb.className = 'puzzle-feedback puzzle-wrong';
     fb.innerHTML = '❌ Not quite. Try again!';
@@ -3385,20 +3397,7 @@ function selectClockTime(seconds, btn) {
   stopClock();
 }
 
-// ─── INJECT REPLAY + ANNOTATION CONTROLS INTO PROFILE ─────────
-const _loadGameOriginal = loadGame;
-function loadGame(playerIndex, gameIndex) {
-  stopReplay();
-  moveAnnotations = {};
-  moveComments    = {};
-  _loadGameOriginal(playerIndex, gameIndex);
-
-  // inject replay controls after board loads
-  setTimeout(() => {
-    injectReplayControls();
-    injectAnnotationEditor();
-  }, 400);
-}
+// ─── Reset annotations on game load (handled inside loadGame) ─
 
 function injectReplayControls() {
   if (document.getElementById('replayControlsBar')) return;
@@ -3562,3 +3561,213 @@ function drawArrow(from, to) {
 }
 
 toast('Group 3 loaded: Annotations, Timer & Replay ♟', 'info');
+
+// ══════════════════════════════════════════════════════════════
+// ─── GROUP 4: HOME & UX ──────────────────────────────────────
+// Mobile Nav · Swipe · PWA · Skeleton · Pull Refresh · Scroll
+// ══════════════════════════════════════════════════════════════
+
+// ─── MOBILE NAV ACTIVE STATE ──────────────────────────────────
+function setMobActive(btn) {
+  document.querySelectorAll('.mob-nav-btn').forEach(b => b.classList.remove('mob-active'));
+  btn.classList.add('mob-active');
+}
+
+// ─── SCROLL TO TOP ─────────────────────────────────────────────
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+window.addEventListener('scroll', () => {
+  const btn = document.getElementById('scrollTopBtn');
+  if (!btn) return;
+  if (window.scrollY > 300) btn.classList.add('btn-visible');
+  else btn.classList.remove('btn-visible');
+});
+
+// ─── NETWORK STATUS ────────────────────────────────────────────
+function showNetworkBanner(online) {
+  const banner = document.getElementById('networkBanner');
+  if (!banner) return;
+  banner.className = `banner-show ${online ? 'online-banner' : 'offline-banner'}`;
+  banner.innerText = online ? '✅ Back online!' : '⚠️ You are offline';
+  setTimeout(() => banner.classList.remove('banner-show'), 3000);
+}
+
+window.addEventListener('online',  () => showNetworkBanner(true));
+window.addEventListener('offline', () => showNetworkBanner(false));
+
+// ─── PULL TO REFRESH ───────────────────────────────────────────
+let pullStartY    = 0;
+let pullDistance  = 0;
+let isPulling     = false;
+const PULL_THRESHOLD = 80;
+
+document.addEventListener('touchstart', (e) => {
+  if (window.scrollY === 0) {
+    pullStartY = e.touches[0].clientY;
+    isPulling  = true;
+  }
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+  if (!isPulling) return;
+  pullDistance = e.touches[0].clientY - pullStartY;
+  const indicator = document.getElementById('pullRefreshIndicator');
+  const text      = document.getElementById('pullRefreshText');
+  if (pullDistance > 10 && pullDistance < 150) {
+    indicator?.classList.add('pull-visible');
+    if (text) text.innerText = pullDistance > PULL_THRESHOLD ? '🔄 Release to refresh' : '↓ Pull to refresh';
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  const indicator = document.getElementById('pullRefreshIndicator');
+  const text      = document.getElementById('pullRefreshText');
+  if (isPulling && pullDistance > PULL_THRESHOLD) {
+    indicator?.classList.add('pull-loading');
+    if (text) text.innerText = 'Refreshing...';
+    // invalidate cache and reload
+    cache.players.data  = null;
+    cache.articles.data = null;
+    cache.pdfs.data     = null;
+    Promise.all([fetchPlayers(), fetchArticles()]).then(() => {
+      indicator?.classList.remove('pull-visible', 'pull-loading');
+      toast('✅ Content refreshed!', 'success');
+    });
+  } else {
+    indicator?.classList.remove('pull-visible');
+  }
+  isPulling    = false;
+  pullDistance = 0;
+});
+
+// ─── SWIPE GESTURES (left/right to switch tabs) ────────────────
+const TAB_ORDER = ['home','articles','players','engine','play','puzzles','openings','pdf'];
+let swipeStartX  = 0;
+let swipeStartY  = 0;
+let swipeTracking = false;
+
+document.addEventListener('touchstart', (e) => {
+  swipeStartX   = e.touches[0].clientX;
+  swipeStartY   = e.touches[0].clientY;
+  swipeTracking = true;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (!swipeTracking) return;
+  const dx = e.changedTouches[0].clientX - swipeStartX;
+  const dy = e.changedTouches[0].clientY - swipeStartY;
+  swipeTracking = false;
+
+  // only horizontal swipes (not scrolls)
+  if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
+
+  const current = document.querySelector('section.active');
+  if (!current) return;
+  const idx = TAB_ORDER.indexOf(current.id);
+  if (idx === -1) return;
+
+  if (dx < 0 && idx < TAB_ORDER.length - 1) showTab(TAB_ORDER[idx + 1]);
+  if (dx > 0 && idx > 0)                     showTab(TAB_ORDER[idx - 1]);
+}, { passive: true });
+
+// ─── KEYBOARD SHORTCUTS ────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  // Ctrl/Cmd + K = focus search
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    const search = document.getElementById('globalSearch');
+    if (search) { search.focus(); showTab('home'); }
+  }
+  // ArrowLeft/Right in profile = prev/next move
+  if (document.getElementById('profile')?.classList.contains('active')) {
+    if (e.key === 'ArrowLeft')  prevMove();
+    if (e.key === 'ArrowRight') nextMove();
+  }
+  // Escape = go back
+  if (e.key === 'Escape') {
+    const profile = document.getElementById('profile');
+    if (profile?.classList.contains('active')) showTab('players');
+  }
+});
+
+// ─── PWA INSTALL PROMPT ────────────────────────────────────────
+let pwaPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  pwaPrompt = e;
+  // show banner after 3 seconds
+  if (!localStorage.getItem('pwaDismissed')) {
+    setTimeout(() => {
+      const banner = document.getElementById('pwaInstallBanner');
+      if (banner) banner.style.display = 'block';
+    }, 3000);
+  }
+});
+
+document.getElementById('pwaInstallBtn')?.addEventListener('click', async () => {
+  if (!pwaPrompt) return;
+  pwaPrompt.prompt();
+  const { outcome } = await pwaPrompt.userChoice;
+  if (outcome === 'accepted') toast('♟ App installed!', 'success');
+  pwaPrompt = null;
+  document.getElementById('pwaInstallBanner').style.display = 'none';
+});
+
+function dismissPWA() {
+  document.getElementById('pwaInstallBanner').style.display = 'none';
+  localStorage.setItem('pwaDismissed', '1');
+}
+
+// ─── PUZZLE STREAK ─────────────────────────────────────────────
+function getPuzzleStreak() {
+  return parseInt(localStorage.getItem('puzzleStreak') || '0');
+}
+
+function incrementStreak() {
+  const streak = getPuzzleStreak() + 1;
+  localStorage.setItem('puzzleStreak', streak);
+  localStorage.setItem('lastPuzzleDate', new Date().toDateString());
+  renderStreakBanner();
+}
+
+function checkStreakReset() {
+  const last = localStorage.getItem('lastPuzzleDate');
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  if (last && last !== today && last !== yesterday) {
+    localStorage.setItem('puzzleStreak', '0');
+  }
+}
+
+function renderStreakBanner() {
+  const streak = getPuzzleStreak();
+  if (streak === 0) return;
+  const existing = document.getElementById('streakBanner');
+  if (existing) existing.remove();
+  const puzzleSection = document.querySelector('#puzzles .card');
+  if (!puzzleSection) return;
+  const banner = document.createElement('div');
+  banner.id = 'streakBanner';
+  banner.className = 'streak-banner';
+  banner.innerHTML = `
+    <div class="streak-fire">🔥</div>
+    <div class="streak-info">
+      <strong>Puzzle Streak!</strong>
+      <span>Keep solving daily puzzles</span>
+    </div>
+    <div class="streak-count">${streak}</div>
+  `;
+  puzzleSection.insertBefore(banner, puzzleSection.firstChild);
+}
+
+// streak increment is called inside the original handlePuzzleDrop below
+
+// ─── IMPROVED SKELETONS ────────────────────────────────────────
+// showSkeletons upgraded version above
+
+// ─── INIT GROUP 4 ──────────────────────────────────────────────
+checkStreakReset();
+renderStreakBanner();
