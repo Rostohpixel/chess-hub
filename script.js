@@ -253,9 +253,9 @@ function openProfile(index) {
 
       <!-- TABS -->
       <div class="profile-tabs">
-        <button class="profile-tab-btn tab-active" data-tab="bio">📖 Bio</button>
-        <button class="profile-tab-btn" data-tab="stats">📊 Stats</button>
-        <button class="profile-tab-btn" data-tab="achievements">🏆 Achievements</button>
+        <button class="profile-tab-btn tab-active" data-tab="bio"> Bio</button>
+        <button class="profile-tab-btn" data-tab="stats">Stats</button>
+        <button class="profile-tab-btn" data-tab="achievements"> Achievements</button>
         <button class="profile-tab-btn" data-tab="games">🎮 Games</button>
       </div>
 
@@ -774,7 +774,7 @@ function renderPlayerOfMonth() {
 
   container.innerHTML = `
     <div class="potm-card">
-      <div class="potm-badge">🏆 Player of the Month</div>
+      <div class="potm-badge"> Player of the Month</div>
       <div class="potm-inner">
         <div class="potm-img-wrapper">
           <img src="${sanitize(star.image || 'images/default.png')}" loading="lazy" onerror="this.src='images/default.png'">
@@ -974,11 +974,11 @@ async function fetchArticles() {
 }
 
 const ARTICLE_CATEGORIES = {
-  openings: { label: '♟ Openings',  color: '#38bdf8' },
-  tactics:  { label: '⚔️ Tactics',  color: '#f97316' },
-  strategy: { label: '🧠 Strategy', color: '#8b5cf6' },
-  history:  { label: '📜 History',  color: '#22c55e' },
-  news:     { label: '📰 News',     color: '#ec4899' },
+  openings: { label: ' Openings',  color: '#38bdf8' },
+  tactics:  { label: ' Tactics',  color: '#f97316' },
+  strategy: { label: ' Strategy', color: '#8b5cf6' },
+  history:  { label: 'History',  color: '#22c55e' },
+  news:     { label: 'News',     color: '#ec4899' },
 };
 
 function articleCategoryBadge(category) {
@@ -1753,7 +1753,7 @@ function _globalSearchHandler() {
     found = true;
     const header = document.createElement('div');
     header.className = 'search-group-header';
-    header.innerText = '📰 Articles';
+    header.innerText = ' Articles';
     results.appendChild(header);
     matchedArticles.slice(0, 3).forEach(a => {
       const div = document.createElement('div');
@@ -3429,7 +3429,7 @@ function injectAnnotationEditor() {
   editor.id = 'annotationEditorBar';
   editor.className = 'annotation-editor';
   editor.innerHTML = `
-    <div class="annotation-editor-title">✏️ Annotate Current Move</div>
+    <div class="annotation-editor-title">Annotate Current Move</div>
     <div class="annotation-btns">
       <button class="ann-btn ann-brilliant-btn"  onclick="annotateMove('!!')">!! Brilliant</button>
       <button class="ann-btn ann-great-btn"      onclick="annotateMove('!')">! Great</button>
