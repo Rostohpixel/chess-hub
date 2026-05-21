@@ -2777,14 +2777,10 @@ section.fade-out { animation: fadeOut 0.15s ease forwards; }
    Glassmorphism · Gradient Borders · Chess Cursor · Particles
    ══════════════════════════════════════════════════════════════ */
 
-/* ─── CHESS PIECE CURSOR ──────────────────────────────────── */
-body {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E♟%3C/text%3E%3C/svg%3E") 8 28, auto;
-}
-
-button, a, [onclick], select, input, textarea, label {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E♛%3C/text%3E%3C/svg%3E") 8 28, pointer;
-}
+/* ─── CURSORS — normal arrows ─────────────────────────────── */
+body { cursor: default; }
+button, a, [onclick], select, label { cursor: pointer; }
+input, textarea { cursor: text; }
 
 /* ─── PARTICLE CANVAS ─────────────────────────────────────── */
 #particleCanvas {
@@ -3164,8 +3160,6 @@ nav {
 /* ─── DISABLE PARTICLES ON MOBILE (performance) ───────────── */
 @media (max-width: 768px) {
   #particleCanvas { display: none; }
-  body { cursor: auto; }
-  button, a, [onclick], select, input, textarea { cursor: pointer; }
 }
 
 
@@ -3804,4 +3798,402 @@ nav {
   .replay-controls  { gap: 6px; }
   .annotation-btns  { gap: 4px; }
   .ann-btn          { font-size: 11px; padding: 4px 8px; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   ─── GROUP 4: HOME & UX ──────────────────────────────────────
+   Mobile Nav · Swipe Gestures · PWA · Skeleton · Pull Refresh
+   ══════════════════════════════════════════════════════════════ */
+
+/* ─── BOTTOM MOBILE NAV ───────────────────────────────────── */
+#mobileNav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(2, 6, 23, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(56,189,248,0.12);
+  padding: 8px 0 env(safe-area-inset-bottom, 8px);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+}
+
+#mobileNav .mob-nav-inner {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.mob-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 10px;
+  transition: color var(--transition), background var(--transition);
+  min-width: 52px;
+  font-size: 11px;
+}
+
+.mob-nav-btn .mob-nav-icon {
+  font-size: 20px;
+  line-height: 1;
+  transition: transform var(--transition);
+}
+
+.mob-nav-btn span:last-child {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+}
+
+.mob-nav-btn:hover,
+.mob-nav-btn.mob-active {
+  color: var(--accent);
+}
+
+.mob-nav-btn.mob-active .mob-nav-icon {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 0 6px rgba(56,189,248,0.6));
+}
+
+/* add bottom padding to sections so content isn't hidden behind mobile nav */
+@media (max-width: 768px) {
+  #mobileNav { display: block; }
+  section    { padding-bottom: 80px; }
+  nav        { display: none; } /* hide top nav on mobile */
+}
+
+/* ─── PULL TO REFRESH ─────────────────────────────────────── */
+#pullRefreshIndicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-60px);
+  background: var(--bg-mid);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: bold;
+  z-index: 2000;
+  transition: transform 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+#pullRefreshIndicator.pull-visible {
+  transform: translateX(-50%) translateY(16px);
+}
+
+#pullRefreshIndicator.pull-loading .pull-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ─── SWIPE HINT ──────────────────────────────────────────── */
+.swipe-hint {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15,23,42,0.9);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  z-index: 900;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+.swipe-hint.hint-visible { opacity: 1; }
+
+/* ─── PWA INSTALL BANNER ──────────────────────────────────── */
+#pwaInstallBanner {
+  display: none;
+  position: fixed;
+  bottom: 72px;
+  left: 12px;
+  right: 12px;
+  background: linear-gradient(135deg, #1e293b, #0f2040);
+  border: 1px solid rgba(56,189,248,0.25);
+  border-radius: 16px;
+  padding: 14px 18px;
+  z-index: 1500;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  backdrop-filter: blur(12px);
+  animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.pwa-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pwa-icon {
+  font-size: 36px;
+  flex-shrink: 0;
+}
+
+.pwa-text { flex: 1; }
+.pwa-text strong { display: block; font-size: 15px; color: var(--text-primary); margin-bottom: 2px; }
+.pwa-text span   { font-size: 12px; color: var(--text-muted); }
+
+.pwa-install-btn {
+  background: var(--accent);
+  border: none;
+  color: black;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 13px;
+  flex-shrink: 0;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.pwa-install-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+
+.pwa-dismiss-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  flex-shrink: 0;
+  transition: color var(--transition);
+}
+
+.pwa-dismiss-btn:hover { color: var(--text-primary); }
+
+/* ─── IMPROVED SKELETON SCREENS ───────────────────────────── */
+@keyframes shimmerNew {
+  0%   { background-position: -800px 0; }
+  100% { background-position:  800px 0; }
+}
+
+.skeleton-v2 {
+  background: linear-gradient(
+    90deg,
+    var(--bg-mid) 0%,
+    rgba(56,189,248,0.06) 40%,
+    var(--bg-mid) 80%
+  );
+  background-size: 800px 100%;
+  animation: shimmerNew 1.6s ease infinite;
+  border-radius: 8px;
+}
+
+.skeleton-card-v2 {
+  background: var(--bg-card);
+  border-radius: 14px;
+  border: 1px solid rgba(56,189,248,0.06);
+  overflow: hidden;
+  padding: 16px;
+}
+
+.skeleton-header-v2 {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.skeleton-circle-v2 {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-lines-v2 {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line-v2 {
+  height: 12px;
+  border-radius: 6px;
+}
+
+.skeleton-line-v2.w-70 { width: 70%; }
+.skeleton-line-v2.w-50 { width: 50%; }
+.skeleton-line-v2.w-90 { width: 90%; }
+.skeleton-line-v2.w-40 { width: 40%; }
+
+.skeleton-img-v2 {
+  width: 100%;
+  height: 160px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+/* ─── SCROLL TO TOP BUTTON ────────────────────────────────── */
+#scrollTopBtn {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+  color: black;
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 800;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(56,189,248,0.4);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+#scrollTopBtn:hover {
+  transform: translateY(-3px) scale(1.1);
+  box-shadow: 0 6px 20px rgba(56,189,248,0.5);
+}
+
+#scrollTopBtn.btn-visible { display: flex; }
+
+/* ─── KEYBOARD SHORTCUT HINT ──────────────────────────────── */
+.shortcut-hint {
+  display: inline-block;
+  background: rgba(56,189,248,0.08);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: monospace;
+  margin-left: 4px;
+}
+
+/* ─── DAILY PUZZLE STREAK ─────────────────────────────────── */
+.streak-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 14px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+}
+
+.streak-fire { font-size: 32px; animation: fireShake 1.5s ease infinite; }
+
+@keyframes fireShake {
+  0%, 100% { transform: rotate(-5deg); }
+  50%       { transform: rotate(5deg); }
+}
+
+.streak-info strong {
+  display: block;
+  font-size: 16px;
+  color: #f59e0b;
+  font-weight: 900;
+}
+
+.streak-info span { font-size: 13px; color: var(--text-muted); }
+
+.streak-count {
+  margin-left: auto;
+  font-size: 36px;
+  font-weight: 900;
+  color: #f59e0b;
+  text-shadow: 0 0 20px rgba(245,158,11,0.4);
+}
+
+/* ─── NETWORK STATUS BANNER ───────────────────────────────── */
+#networkBanner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9000;
+  padding: 10px 20px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: bold;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+}
+
+#networkBanner.banner-show { transform: translateY(0); }
+#networkBanner.online-banner  { background: rgba(34,197,94,0.9); color: black; }
+#networkBanner.offline-banner { background: rgba(239,68,68,0.9); color: white; }
+
+/* ─── SEARCH KEYBOARD SHORTCUT ────────────────────────────── */
+.search-shortcut-badge {
+  background: rgba(56,189,248,0.1);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: monospace;
+  pointer-events: none;
+}
+
+/* ─── SMOOTH SECTION SCROLL ───────────────────────────────── */
+html { scroll-behavior: smooth; }
+
+/* ─── FOCUS VISIBLE ACCESSIBILITY ────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(56,189,248,0.6);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── LIGHT MODE ADJUSTMENTS ──────────────────────────────── */
+.light-mode #mobileNav {
+  background: rgba(203,213,225,0.95);
+  border-top-color: rgba(56,189,248,0.2);
+}
+
+.light-mode .mob-nav-btn { color: #475569; }
+.light-mode .mob-nav-btn.mob-active { color: var(--accent); }
+
+.light-mode #pwaInstallBanner {
+  background: linear-gradient(135deg, #e0f2fe, #f0f9ff);
+  border-color: rgba(56,189,248,0.3);
+}
+
+@media (min-width: 769px) {
+  #scrollTopBtn { bottom: 24px; }
+  section       { padding-bottom: 20px; }
+  nav           { display: flex; }
 }
