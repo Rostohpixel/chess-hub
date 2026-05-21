@@ -167,11 +167,11 @@
     <textarea id="articleContent" placeholder="Article Content"></textarea>
     <select id="articleCategory" style="width:100%; margin:5px 0; padding:8px; border-radius:5px; border:none; background:#1e293b; color:#e2e8f0; cursor:pointer;">
       <option value="">No Category</option>
-      <option value="openings">♟ Openings</option>
-      <option value="tactics">⚔️ Tactics</option>
-      <option value="strategy">🧠 Strategy</option>
-      <option value="history">📜 History</option>
-      <option value="news">📰 News</option>
+      <option value="openings"> Openings</option>
+      <option value="tactics"> Tactics</option>
+      <option value="strategy"> Strategy</option>
+      <option value="history"> History</option>
+      <option value="news">News</option>
     </select>
     <input type="file" id="articleImage" accept="image/*">
     <button onclick="addArticle()">Publish Article</button>
@@ -231,7 +231,7 @@
     <h2>Platform Statistics</h2>
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-icon">♟</div>
+        <div class="stat-icon"></div>
         <div class="stat-info">
           <span id="statPlayers">0</span>
           <label>Chess Legends</label>
@@ -245,14 +245,14 @@
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">📰</div>
+        <div class="stat-icon"></div>
         <div class="stat-info">
           <span id="statArticles">0</span>
           <label>Articles Published</label>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">📚</div>
+        <div class="stat-icon"></div>
         <div class="stat-info">
           <span id="statPDFs">0</span>
           <label>PDFs Available</label>
@@ -261,7 +261,7 @@
     </div>
   </div>
   <div class="home-section">
-    <h2>🏆 Rating Leaderboard</h2>
+    <h2> Rating Leaderboard</h2>
     <div id="leaderboard"></div>
   </div>
   <div class="home-section">
@@ -296,11 +296,11 @@
     </div>
     <div class="article-filters">
       <button class="article-filter-btn active" onclick="setArticleCategory('all', this)">All</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('openings', this)">♟ Openings</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('tactics', this)">⚔️ Tactics</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('strategy', this)">🧠 Strategy</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('history', this)">📜 History</button>
-      <button class="article-filter-btn" onclick="setArticleCategory('news', this)">📰 News</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('openings', this)"> Openings</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('tactics', this)"> Tactics</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('strategy', this)"> Strategy</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('history', this)"> History</button>
+      <button class="article-filter-btn" onclick="setArticleCategory('news', this)"> News</button>
     </div>
     <div id="articlesPageContainer" class="articles-grid"></div>
   </div>
