@@ -253,9 +253,9 @@ function openProfile(index) {
 
       <!-- TABS -->
       <div class="profile-tabs">
-        <button class="profile-tab-btn tab-active" data-tab="bio"> Bio</button>
-        <button class="profile-tab-btn" data-tab="stats">Stats</button>
-        <button class="profile-tab-btn" data-tab="achievements"> Achievements</button>
+        <button class="profile-tab-btn tab-active" data-tab="bio">📖 Bio</button>
+        <button class="profile-tab-btn" data-tab="stats">📊 Stats</button>
+        <button class="profile-tab-btn" data-tab="achievements">🏆 Achievements</button>
         <button class="profile-tab-btn" data-tab="games">🎮 Games</button>
       </div>
 
@@ -774,7 +774,7 @@ function renderPlayerOfMonth() {
 
   container.innerHTML = `
     <div class="potm-card">
-      <div class="potm-badge"> Player of the Month</div>
+      <div class="potm-badge">🏆 Player of the Month</div>
       <div class="potm-inner">
         <div class="potm-img-wrapper">
           <img src="${sanitize(star.image || 'images/default.png')}" loading="lazy" onerror="this.src='images/default.png'">
@@ -974,11 +974,11 @@ async function fetchArticles() {
 }
 
 const ARTICLE_CATEGORIES = {
-  openings: { label: ' Openings',  color: '#38bdf8' },
-  tactics:  { label: ' Tactics',  color: '#f97316' },
-  strategy: { label: ' Strategy', color: '#8b5cf6' },
-  history:  { label: 'History',  color: '#22c55e' },
-  news:     { label: 'News',     color: '#ec4899' },
+  openings: { label: '♟ Openings',  color: '#38bdf8' },
+  tactics:  { label: '⚔️ Tactics',  color: '#f97316' },
+  strategy: { label: '🧠 Strategy', color: '#8b5cf6' },
+  history:  { label: '📜 History',  color: '#22c55e' },
+  news:     { label: '📰 News',     color: '#ec4899' },
 };
 
 function articleCategoryBadge(category) {
@@ -1047,8 +1047,16 @@ function renderArticlesPage() {
     return matchesCategory && matchesSearch;
   });
 
+  // update count badge
+  const badge = document.getElementById('articleCountBadge');
+  if (badge) badge.innerText = `${filtered.length} Article${filtered.length !== 1 ? 's' : ''}`;
+
   if (filtered.length === 0) {
-    container.innerHTML = '<p style="color:#64748b; text-align:center; padding:40px;">No articles found.</p>';
+    container.innerHTML = `
+      <div class="no-articles-placeholder" style="grid-column:1/-1;">
+        <div class="placeholder-icon">📰</div>
+        <p>No articles found matching your search.</p>
+      </div>`;
     return;
   }
 
@@ -1069,7 +1077,7 @@ function renderArticlesPage() {
           <span class="article-reading-time">⏱ ${readingTime(article.content)}</span>
         </div>
         <h3>${sanitize(article.title)}</h3>
-        <p class="article-date">${new Date(article.created_at).toLocaleDateString()}</p>
+        <p class="article-date">📅 ${new Date(article.created_at).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' })}</p>
         <p>${article.content.length > 120 ? sanitize(article.content.substring(0, 120)) + '...' : sanitize(article.content)}</p>
       </div>
     </div>
@@ -1103,18 +1111,28 @@ function openArticle(index) {
   ` : '';
 
   container.innerHTML = `
-    <div class="card">
-      <div class="back" onclick="showTab('articles')">← Back</div>
-      <img src="${article.image || 'images/default.png'}"
-           style="width:100%; max-height:300px; object-fit:cover; border-radius:10px; margin-bottom:10px;"
-           loading="lazy" onerror="this.src='images/default.png'">
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+    <div class="card" style="cursor:default;">
+      <div class="back" onclick="showTab('articles')">← Back to Articles</div>
+
+      <img
+        src="${article.image || 'images/default.png'}"
+        class="article-detail-hero"
+        loading="lazy"
+        onerror="this.src='images/default.png'"
+      >
+
+      <div class="article-detail-meta">
         ${articleCategoryBadge(article.category)}
-        <span style="font-size:12px; color:#64748b;">${new Date(article.created_at).toLocaleDateString()}</span>
-        <span style="font-size:12px; color:#64748b;">⏱ ${readingTime(article.content)}</span>
+        <span class="article-detail-date">📅 ${new Date(article.created_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</span>
+        <span class="article-reading-time">⏱ ${readingTime(article.content)}</span>
       </div>
-      <h2>${sanitize(article.title)}</h2>
-      <p>${sanitize(article.content)}</p>
+
+      <h2 style="font-size:26px; font-weight:900; margin:0 0 16px 0; line-height:1.3;">${sanitize(article.title)}</h2>
+
+      <div class="article-detail-body">
+        <p>${sanitize(article.content)}</p>
+      </div>
+
       ${relatedHTML}
     </div>
   `;
@@ -1308,6 +1326,10 @@ function initEngineBoard() {
         }
       }
       if (line.startsWith('bestmove')) {
+        // hide thinking indicator
+        const thinking = document.getElementById('engineThinking');
+        if (thinking) thinking.style.display = 'none';
+
         const match = line.match(/bestmove\s+(\w+)/);
         if (match && match[1] !== '(none)') {
           drawArrow(match[1].substring(0, 2), match[1].substring(2, 4));
@@ -1343,27 +1365,46 @@ function analyzeEnginePosition() {
   engine.postMessage('stop');
   engine.postMessage('setoption name MultiPV value 3');
   engine.postMessage('position fen ' + engineGame.fen());
-  engine.postMessage('go depth 12');
+  engine.postMessage('go depth 15');
+
+  // show thinking indicator
+  const thinking = document.getElementById('engineThinking');
+  if (thinking) thinking.style.display = 'flex';
 }
 
 function updateEvalBar(score) {
   score = Math.max(-10, Math.min(10, score));
-  const percentage = 50 + (score * 5);
+  const percentage  = 50 + (score * 5);
+  const scoreLabel  = score > 0 ? '+' + score.toFixed(1) : score === 0 ? '0.0' : score.toFixed(1);
+  const isWhiteAhead = score >= 0;
+
+  // engine eval bar
   const engineFill = document.getElementById('engineEvalFill');
   const engineText = document.getElementById('engineEvalText');
   if (engineFill) engineFill.style.height = percentage + '%';
   if (engineText) {
-    engineText.innerText = score > 0 ? '+' + score.toFixed(1) : score === 0 ? '0.0' : score.toFixed(1);
-    if (score >= 0) { engineText.style.bottom = 'auto'; engineText.style.top = '4px'; engineText.style.color = '#333'; }
-    else            { engineText.style.top = 'auto'; engineText.style.bottom = '4px'; engineText.style.color = '#e2e8f0'; }
+    engineText.innerText = scoreLabel;
+    engineText.style.bottom = isWhiteAhead ? 'auto' : '4px';
+    engineText.style.top    = isWhiteAhead ? '4px'  : 'auto';
+    engineText.style.color  = isWhiteAhead ? '#1a1a1a' : '#f1f5f9';
   }
+
+  // profile eval bar
   const evalBar   = document.getElementById('evalBar');
   const evalScore = document.getElementById('evalScore');
   if (evalBar) evalBar.style.height = percentage + '%';
   if (evalScore) {
-    evalScore.innerText = score > 0 ? '+' + score.toFixed(1) : score === 0 ? '0.0' : score.toFixed(1);
-    if (score >= 0) { evalScore.style.bottom = 'auto'; evalScore.style.top = '4px'; evalScore.style.color = '#e2e8f0'; }
-    else            { evalScore.style.top = 'auto'; evalScore.style.bottom = '4px'; evalScore.style.color = '#333'; }
+    evalScore.innerText = scoreLabel;
+    evalScore.style.bottom = isWhiteAhead ? 'auto' : '4px';
+    evalScore.style.top    = isWhiteAhead ? '4px'  : 'auto';
+    evalScore.style.color  = isWhiteAhead ? '#e2e8f0' : '#1a1a1a';
+  }
+
+  // score display in stats bar
+  const scoreDisplay = document.getElementById('engineScoreDisplay');
+  if (scoreDisplay) {
+    scoreDisplay.innerText = scoreLabel;
+    scoreDisplay.style.color = score > 0.5 ? '#86efac' : score < -0.5 ? '#fca5a5' : 'var(--accent)';
   }
 }
 
@@ -1397,22 +1438,27 @@ function renderEngineMoves() {
 
   const fragment = document.createDocumentFragment();
   const history  = engineGame.history({ verbose: true });
+  const total    = history.length;
 
   for (let i = 0; i < history.length; i += 2) {
     const row    = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.flexWrap = 'wrap';
+
     const number = document.createElement('span');
     number.className = 'move-number';
     number.innerText = `${Math.floor(i / 2) + 1}.`;
     row.appendChild(number);
 
     const white = document.createElement('span');
-    white.className = 'move';
+    white.className = 'move' + (i === total - 1 ? ' move-current' : '');
     white.innerText = history[i].san;
     row.appendChild(white);
 
     if (history[i + 1]) {
       const black = document.createElement('span');
-      black.className = 'move';
+      black.className = 'move' + (i + 1 === total - 1 ? ' move-current' : '');
       black.innerText = history[i + 1].san;
       row.appendChild(black);
     }
@@ -1422,6 +1468,13 @@ function renderEngineMoves() {
   movesDiv.innerHTML = '';
   movesDiv.appendChild(fragment);
   movesDiv.scrollTop = movesDiv.scrollHeight;
+
+  // flash the last move
+  const lastMove = movesDiv.querySelector('.move-current');
+  if (lastMove) {
+    lastMove.classList.add('move-flash');
+    setTimeout(() => lastMove.classList.remove('move-flash'), 500);
+  }
 }
 
 function resetEngineBoard() {
@@ -1439,14 +1492,28 @@ function resetEngineBoard() {
   updateEvalBar(0);
   renderEngineMoves();
   clearArrow();
-  document.getElementById('engineDepth').innerText    = '—';
-  document.getElementById('engineNps').innerText      = '—';
-  document.getElementById('engineNodes').innerText    = '—';
-  document.getElementById('multiPV').innerHTML        = '';
-  document.getElementById('pvLine').innerHTML         = '<span>Best Line:</span> —';
-  document.getElementById('openingName').innerText    = 'Opening: —';
-  document.getElementById('engineEvalFill').style.height = '50%';
-  document.getElementById('engineEvalText').innerText = '0.0';
+  const eDepth   = document.getElementById('engineDepth');
+  const eNps     = document.getElementById('engineNps');
+  const eNodes   = document.getElementById('engineNodes');
+  const eScore   = document.getElementById('engineScoreDisplay');
+  const ePV      = document.getElementById('pvLine');
+  const eOpening = document.getElementById('openingName');
+  const eEvalFill= document.getElementById('engineEvalFill');
+  const eEvalText= document.getElementById('engineEvalText');
+  const eThink   = document.getElementById('engineThinking');
+  const bestBar  = document.getElementById('bestMoveBar');
+
+  if (eDepth)    eDepth.innerText    = '—';
+  if (eNps)      eNps.innerText      = '—';
+  if (eNodes)    eNodes.innerText    = '—';
+  if (eScore)    eScore.innerText    = '—';
+  if (ePV)       ePV.innerHTML       = '<span>Best Line</span>';
+  if (eOpening)  eOpening.innerText  = 'Opening: —';
+  if (eEvalFill) eEvalFill.style.height = '50%';
+  if (eEvalText) eEvalText.innerText = '0.0';
+  if (eThink)    eThink.style.display = 'none';
+  if (bestBar)   bestBar.remove();
+  document.getElementById('multiPV').innerHTML = '';
 }
 
 function flipEngineBoard() {
@@ -1522,11 +1589,16 @@ function clearHighlights() {
 
 function highlightLastMove(from, to) {
   clearHighlights();
-  const board      = document.getElementById('engineBoard');
-  const fromSquare = board.querySelector(`.square-${from}`);
-  const toSquare   = board.querySelector(`.square-${to}`);
-  if (fromSquare) fromSquare.classList.add('highlight-from');
-  if (toSquare)   toSquare.classList.add('highlight-to');
+  // try engine board first, then profile board
+  const boards = ['engineBoard', 'board'];
+  boards.forEach(boardId => {
+    const boardEl = document.getElementById(boardId);
+    if (!boardEl) return;
+    const fromSquare = boardEl.querySelector(`.square-${from}`);
+    const toSquare   = boardEl.querySelector(`.square-${to}`);
+    if (fromSquare) fromSquare.classList.add('highlight-from');
+    if (toSquare)   toSquare.classList.add('highlight-to');
+  });
 }
 
 function initProfileEngine() {
@@ -1753,7 +1825,7 @@ function _globalSearchHandler() {
     found = true;
     const header = document.createElement('div');
     header.className = 'search-group-header';
-    header.innerText = ' Articles';
+    header.innerText = '📰 Articles';
     results.appendChild(header);
     matchedArticles.slice(0, 3).forEach(a => {
       const div = document.createElement('div');
@@ -1950,7 +2022,14 @@ function updateOpeningName() {
     }
   });
   const el = document.getElementById('openingName');
-  if (el) el.innerText = bestMatch ? `Opening: ${bestMatch}` : 'Opening: —';
+  if (el) {
+    el.innerText = bestMatch ? bestMatch : 'Opening: —';
+    // add glow if opening found
+    if (bestMatch) {
+      el.style.textShadow = '0 0 10px rgba(56,189,248,0.5)';
+      setTimeout(() => { if (el) el.style.textShadow = ''; }, 1500);
+    }
+  }
 }
 
 function drawEvalGraph() {
@@ -3429,7 +3508,7 @@ function injectAnnotationEditor() {
   editor.id = 'annotationEditorBar';
   editor.className = 'annotation-editor';
   editor.innerHTML = `
-    <div class="annotation-editor-title">Annotate Current Move</div>
+    <div class="annotation-editor-title">✏️ Annotate Current Move</div>
     <div class="annotation-btns">
       <button class="ann-btn ann-brilliant-btn"  onclick="annotateMove('!!')">!! Brilliant</button>
       <button class="ann-btn ann-great-btn"      onclick="annotateMove('!')">! Great</button>
