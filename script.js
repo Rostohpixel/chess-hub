@@ -173,10 +173,10 @@ function renderPlayers() {
       <div class="card">
         <div class="card-content">
           <img
-            src="${p.image && p.image.trim() ? sanitize(p.image) : 'images/default.png'}"
+            src="${p.image && p.image.trim() && p.image.startsWith('http') ? sanitize(p.image) : 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}"
             class="player-img"
             loading="lazy"
-            onerror="this.src='images/default.png'"
+            onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'"
           >
           <div class="player-info">
             <h2>
@@ -236,9 +236,9 @@ function openProfile(index) {
 
       <!-- PROFILE HEADER -->
       <div class="profile-header">
-        <img src="${sanitize(player.image || 'images/default.png')}"
+        <img src="${player.image && player.image.startsWith('http') ? sanitize(player.image) : 'https://placehold.co/150x150/1e293b/38bdf8?text=♟'}"
              class="profile-avatar" loading="lazy"
-             onerror="this.src='images/default.png'">
+             onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
         <div class="profile-meta">
           <h2>
             ${player.title ? `<span class="title-badge title-${player.title}">${player.title}</span>` : ''}
@@ -387,23 +387,38 @@ function loadGame(playerIndex, gameIndex) {
   const moves = game.history();
   const chess = new Chess();
 
-  // Switch to games tab first so #board element is visible in DOM
+  // Destroy existing board
+  if (currentBoard && currentBoard.board) {
+    try { currentBoard.board.destroy(); } catch(e) {}
+    currentBoard = null;
+  }
+
+  // Switch to games tab so #board div is in the DOM
   const gamesTab = document.querySelector('.profile-tab-btn[data-tab="games"]');
   if (gamesTab && !gamesTab.classList.contains('tab-active')) {
     gamesTab.click();
   }
 
-  if (currentBoard && currentBoard.board) currentBoard.board.destroy();
-
-  // Wait a tick for tab to render before initializing board
+  // Wait for tab transition + DOM paint before init
   setTimeout(() => {
+    const boardEl = document.getElementById('board');
+    if (!boardEl) {
+      console.warn('Board element not found');
+      return;
+    }
+
+    // clear any existing chessboard inside
+    boardEl.innerHTML = '';
+
     const board = Chessboard('board', {
       position: 'start',
-      pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+      pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+      showNotation: true,
     });
 
     currentBoard = { chess, board, moves, moveIndex: 0 };
 
+    // set player name labels
     const white      = gameData.white_player || 'White';
     const black      = gameData.black_player || 'Black';
     const whiteTitle = gameData.white_title  || '';
@@ -418,14 +433,18 @@ function loadGame(playerIndex, gameIndex) {
     renderMoves();
     updateBoard();
 
-    setTimeout(() => {
+    // resize + engine after paint
+    requestAnimationFrame(() => {
       board.resize();
-      initProfileEngine();
-      analyzeProfilePosition();
-      injectReplayControls();
-      injectAnnotationEditor();
-    }, 300);
-  }, 80); // end of tab-switch delay
+      setTimeout(() => {
+        initProfileEngine();
+        analyzeProfilePosition();
+        injectReplayControls();
+        injectAnnotationEditor();
+      }, 150);
+    });
+
+  }, 120); // wait for tab switch animation
 }
 
 function nextMove() {
@@ -619,21 +638,33 @@ async function addPlayer() {
 
   const fileInput = document.getElementById('imageFile');
   const file      = fileInput.files[0];
-  let image       = "images/default.png";
+  let image       = "";
 
   if (file) {
-    const fileName = Date.now() + "-" + file.name;
-    const { error: uploadError } = await client.storage.from('player-images').upload(fileName, file);
-    if (uploadError) { toast(uploadError.message, 'error'); return; }
-    const { data } = client.storage.from('player-images').getPublicUrl(fileName);
-    image = data.publicUrl;
+    // sanitize filename — remove spaces and special chars
+    const safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName  = Date.now() + "-" + safeName;
+
+    const { error: uploadError } = await client.storage
+      .from('player-images')
+      .upload(fileName, file, { upsert: true });
+
+    if (uploadError) {
+      toast('Image upload failed: ' + uploadError.message, 'error');
+      console.error('Upload error:', uploadError);
+      // continue without image rather than stopping
+    } else {
+      const { data } = client.storage.from('player-images').getPublicUrl(fileName);
+      image = data.publicUrl;
+      console.log('Image uploaded:', image);
+    }
   }
 
   const { data: playerData, error: playerError } = await client
     .from('players')
-    .insert([{ name, bio, career, image, achievements, rating, title }])
+    .insert([{ name, bio, career, image: image || null, achievements, rating, title }])
     .select();
-  if (playerError) { alert(playerError.message); return; }
+  if (playerError) { toast(playerError.message, 'error'); return; }
 
   const playerId    = playerData[0].id;
   const gamesToSave = [];
@@ -661,8 +692,14 @@ async function addPlayer() {
   });
 
   if (gamesToSave.length > 0) {
-    const { error: gameError } = await client.from('games').insert(gamesToSave);
-    if (gameError) toast('Game save failed', 'error');
+    console.log('Saving games:', gamesToSave);
+    const { data: savedGames, error: gameError } = await client.from('games').insert(gamesToSave).select();
+    if (gameError) {
+      console.error('Game save error:', gameError);
+      toast('Game save failed: ' + gameError.message, 'error');
+    } else {
+      console.log('Games saved:', savedGames);
+    }
   }
 
   ['name','bio','career','achievements','rating','title','gameName','whitePlayer','blackPlayer','pgn']
@@ -744,6 +781,7 @@ async function fetchPlayers() {
 
   players = playersRes.data.map(player => ({
     ...player,
+    image: player.image || '',
     games: gamesRes.data.filter(g => g.player_id === player.id)
   }));
 
@@ -777,7 +815,7 @@ function renderPlayerOfMonth() {
       <div class="potm-badge">🏆 Player of the Month</div>
       <div class="potm-inner">
         <div class="potm-img-wrapper">
-          <img src="${sanitize(star.image || 'images/default.png')}" loading="lazy" onerror="this.src='images/default.png'">
+          <img src="${sanitize(star.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟')}" loading="lazy" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
         </div>
         <div class="potm-info">
           <div class="potm-name">
@@ -868,7 +906,7 @@ function renderComparison() {
     <div class="compare-result">
       <div class="compare-headers">
         <div class="compare-player-head">
-          <img src="${sanitize(a.image || 'images/default.png')}" onerror="this.src='images/default.png'">
+          <img src="${sanitize(a.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟')}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
           <div>
             ${a.title ? `<span class="title-badge title-${a.title}">${a.title}</span>` : ''}
             <strong>${sanitize(a.name)}</strong>
@@ -876,7 +914,7 @@ function renderComparison() {
         </div>
         <div class="compare-vs">VS</div>
         <div class="compare-player-head">
-          <img src="${sanitize(b.image || 'images/default.png')}" onerror="this.src='images/default.png'">
+          <img src="${sanitize(b.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟')}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
           <div>
             ${b.title ? `<span class="title-badge title-${b.title}">${b.title}</span>` : ''}
             <strong>${sanitize(b.name)}</strong>
@@ -902,7 +940,7 @@ function renderFeaturedPlayers() {
     return `
       <div class="featured-card" onclick="openProfile(${i})">
         <div class="featured-img-wrapper">
-          <img src="${sanitize(p.image || 'images/default.png')}" loading="lazy" onerror="this.src='images/default.png'">
+          <img src="${p.image && p.image.startsWith('http') ? sanitize(p.image) : 'https://placehold.co/200x200/1e293b/38bdf8?text=♟'}" loading="lazy" onerror="this.src='https://placehold.co/200x200/1e293b/38bdf8?text=♟'">
           <div class="featured-overlay">
             <button class="featured-view-btn">View Profile</button>
           </div>
@@ -1014,7 +1052,7 @@ function renderArticles() {
             <button onclick="deleteArticle('${article.id}', event)">Delete</button>
           </div>
         </div>
-        <img src="${article.image || 'images/default.png'}" alt="${sanitize(article.title)}" loading="lazy" onerror="this.src='images/default.png'">
+        <img src="${article.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}" alt="${sanitize(article.title)}" loading="lazy" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
       </div>
       <div class="article-content">
         <div class="article-meta-row">
@@ -1069,7 +1107,7 @@ function renderArticlesPage() {
             <button onclick="deleteArticle('${article.id}', event)">Delete</button>
           </div>
         </div>
-        <img src="${article.image || 'images/default.png'}" alt="${sanitize(article.title)}" loading="lazy" onerror="this.src='images/default.png'">
+        <img src="${article.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}" alt="${sanitize(article.title)}" loading="lazy" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
       </div>
       <div class="article-content">
         <div class="article-meta-row">
@@ -1098,7 +1136,7 @@ function openArticle(index) {
       <div class="related-grid">
         ${related.map(r => `
           <div class="related-card" onclick="openArticleById('${r.id}')">
-            <img src="${r.image || 'images/default.png'}" loading="lazy" onerror="this.src='images/default.png'">
+            <img src="${r.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}" loading="lazy" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
             <div class="related-info">
               ${articleCategoryBadge(r.category)}
               <strong>${sanitize(r.title)}</strong>
@@ -1115,10 +1153,10 @@ function openArticle(index) {
       <div class="back" onclick="showTab('articles')">← Back to Articles</div>
 
       <img
-        src="${article.image || 'images/default.png'}"
+        src="${article.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}"
         class="article-detail-hero"
         loading="lazy"
-        onerror="this.src='images/default.png'"
+        onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'"
       >
 
       <div class="article-detail-meta">
@@ -1810,7 +1848,7 @@ function _globalSearchHandler() {
       const div   = document.createElement('div');
       div.className = 'search-result-item';
       div.innerHTML = `
-        <img src="${p.image || 'images/default.png'}" loading="lazy" onerror="this.src='images/default.png'">
+        <img src="${p.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}" loading="lazy" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
         <div><strong>${sanitize(p.name)}</strong><span>${p.title || 'Player'}</span></div>
       `;
       div.onclick = () => { openProfile(index); clearGlobalSearch(); };
@@ -1831,7 +1869,7 @@ function _globalSearchHandler() {
       const div = document.createElement('div');
       div.className = 'search-result-item';
       div.innerHTML = `
-        <img src="${a.image || 'images/default.png'}" loading="lazy" onerror="this.src='images/default.png'">
+        <img src="${a.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}" loading="lazy" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
         <div><strong>${sanitize(a.title)}</strong><span>Article</span></div>
       `;
       div.onclick = () => { openArticleById(a.id); clearGlobalSearch(); };
@@ -2032,48 +2070,7 @@ function updateOpeningName() {
   }
 }
 
-function drawEvalGraph() {
-  const canvas = document.getElementById('evalGraph');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W   = canvas.width;
-  const H   = canvas.height;
-  const pad = 20;
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#0b0f1a';
-  ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth   = 1;
-  ctx.beginPath();
-  ctx.moveTo(pad, H / 2);
-  ctx.lineTo(W - pad, H / 2);
-  ctx.stroke();
-  if (evalHistory.length < 2) return;
-  const points = evalHistory.map((e, i) => {
-    const x     = pad + (i / (evalHistory.length - 1)) * (W - pad * 2);
-    const score = Math.max(-10, Math.min(10, e.score));
-    const y     = H / 2 - (score / 10) * (H / 2 - pad);
-    return { x, y, score: e.score, label: e.label };
-  });
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, H / 2);
-  points.forEach(p => ctx.lineTo(p.x, p.y));
-  ctx.lineTo(points[points.length - 1].x, H / 2);
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.strokeStyle = '#38bdf8';
-  ctx.lineWidth   = 2;
-  points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.stroke();
-  points.forEach(p => {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = '#38bdf8';
-    ctx.fill();
-  });
-}
+
 
 function analyzeProfilePosition() {
   if (!profileEngine || !currentBoard) return;
@@ -2729,7 +2726,7 @@ function renderLeaderboard() {
       ${rated.map((p, i) => `
         <div class="leaderboard-row" onclick="openProfile(${players.indexOf(p)})">
           <span class="lb-rank">${medals[i] || `#${i+1}`}</span>
-          <img src="${sanitize(p.image || 'images/default.png')}" class="lb-avatar" loading="lazy" onerror="this.src='images/default.png'">
+          <img src="${sanitize(p.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟')}" class="lb-avatar" loading="lazy" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
           <div class="lb-info">
             <span class="lb-name">
               ${p.title ? `<span class="title-badge title-${p.title}">${p.title}</span>` : ''}
@@ -3092,7 +3089,7 @@ function renderRecentlyViewed() {
     if (idx === -1) return '';
     return `
       <div class="recently-viewed-item" onclick="openProfile(${idx})">
-        <img src="${p.image || 'images/default.png'}" onerror="this.src='images/default.png'">
+        <img src="${p.image || 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}" onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
         <span>${p.title ? p.title + ' ' : ''}${sanitize(p.name)}</span>
       </div>
     `;
@@ -3850,3 +3847,714 @@ function renderStreakBanner() {
 // ─── INIT GROUP 4 ──────────────────────────────────────────────
 checkStreakReset();
 renderStreakBanner();
+
+// ══════════════════════════════════════════════════════════════
+// ─── MOST IMPACTFUL FEATURES ──────────────────────────────────
+// 1. Game Review   2. Clickable Eval Graph   3. Board Themes
+// ══════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════
+// FEATURE 1: FULL GAME REVIEW
+// ══════════════════════════════════════════════════════════════
+let reviewResults   = [];
+let isReviewing     = false;
+let reviewWorker    = null;
+
+async function startGameReview() {
+  if (!engineGame || engineGame.history().length === 0) {
+    toast('Load a PGN first to review', 'info');
+    return;
+  }
+  if (isReviewing) return;
+
+  isReviewing   = true;
+  reviewResults = [];
+
+  const btn      = document.getElementById('reviewBtn');
+  const progress = document.getElementById('reviewProgress');
+  const results  = document.getElementById('reviewResults');
+
+  if (btn)      { btn.disabled = true; btn.innerHTML = '⏳ Reviewing...'; }
+  if (progress) progress.style.display = 'block';
+  if (results)  results.style.display  = 'none';
+
+  const history  = engineGame.history({ verbose: true });
+  const total    = history.length;
+  let   prevEval = 0;
+
+  // replay game move by move and get eval at each position
+  const tempGame = new Chess();
+
+  for (let i = 0; i < total; i++) {
+    const move = history[i];
+    tempGame.move({ from: move.from, to: move.to, promotion: move.promotion || 'q' });
+
+    // get eval via a quick engine search
+    const evalScore = await getPositionEval(tempGame.fen(), 10);
+
+    const isWhite  = move.color === 'w';
+    const diff     = isWhite ? prevEval - evalScore : evalScore - prevEval;
+    const quality  = classifyMoveQuality(diff);
+
+    reviewResults.push({
+      moveNum:  Math.floor(i / 2) + 1,
+      color:    move.color,
+      san:      move.san,
+      eval:     evalScore,
+      prevEval: prevEval,
+      diff:     diff,
+      quality:  quality,
+      fen:      tempGame.fen(),
+      index:    i,
+    });
+
+    prevEval = evalScore;
+
+    // update progress
+    const pct = Math.round(((i + 1) / total) * 100);
+    const fill  = document.getElementById('reviewProgressFill');
+    const label = document.getElementById('reviewProgressLabel');
+    if (fill)  fill.style.width = pct + '%';
+    if (label) label.innerText  = `Analyzing move ${i + 1} of ${total}...`;
+  }
+
+  isReviewing = false;
+  if (btn) { btn.disabled = false; btn.innerHTML = '🔬 Review Game'; }
+  if (progress) progress.style.display = 'none';
+
+  renderReviewResults();
+  toast('✅ Game review complete!', 'success');
+}
+
+// get eval score for a position using the engine
+function getPositionEval(fen, depth) {
+  return new Promise((resolve) => {
+    if (!engine) { resolve(0); return; }
+
+    let resolved = false;
+    const timeout = setTimeout(() => {
+      if (!resolved) { resolved = true; resolve(0); }
+    }, 3000);
+
+    const origMsg = engine.onmessage;
+    engine.onmessage = function(e) {
+      const line = e.data;
+
+      if (line.startsWith('bestmove')) {
+        engine.onmessage = origMsg;
+        clearTimeout(timeout);
+        if (!resolved) { resolved = true; resolve(lastReviewEval); }
+      }
+
+      if (line.includes('score cp')) {
+        const m = line.match(/score cp (-?\d+)/);
+        if (m) lastReviewEval = parseInt(m[1]) / 100;
+      }
+      if (line.includes('score mate')) {
+        const m = line.match(/score mate (-?\d+)/);
+        if (m) lastReviewEval = parseInt(m[1]) > 0 ? 10 : -10;
+      }
+    };
+
+    engine.postMessage('stop');
+    engine.postMessage(`position fen ${fen}`);
+    engine.postMessage(`go depth ${depth}`);
+  });
+}
+
+let lastReviewEval = 0;
+
+function classifyMoveQuality(diff) {
+  if (diff < -0.1) return { label: '!!', name: 'Brilliant',  cls: 'stat-brilliant',  color: '#1baca6' };
+  if (diff < 0.1)  return { label: '!',  name: 'Excellent',  cls: 'stat-excellent',  color: '#96bc4b' };
+  if (diff < 0.5)  return { label: '',   name: 'Good',       cls: 'stat-good',       color: '#5b8a3c' };
+  if (diff < 1.5)  return { label: '?!', name: 'Inaccuracy', cls: 'stat-inaccuracy', color: '#f0c15f' };
+  if (diff < 3.0)  return { label: '?',  name: 'Mistake',    cls: 'stat-mistake',    color: '#e58f2a' };
+  return              { label: '??', name: 'Blunder',    cls: 'stat-blunder',    color: '#ca3431' };
+}
+
+function calcAccuracy(moves) {
+  if (moves.length === 0) return 100;
+  const totalDiff = moves.reduce((sum, m) => sum + Math.max(0, m.diff), 0);
+  const avgDiff   = totalDiff / moves.length;
+  const accuracy  = Math.max(0, Math.min(100, 100 - avgDiff * 12));
+  return Math.round(accuracy);
+}
+
+function getAccuracyClass(score) {
+  if (score >= 90) return 'great';
+  if (score >= 75) return 'good';
+  if (score >= 55) return 'average';
+  return 'poor';
+}
+
+function renderReviewResults() {
+  const container = document.getElementById('reviewResults');
+  if (!container) return;
+
+  container.style.display = 'block';
+
+  const whiteMoves = reviewResults.filter(r => r.color === 'w');
+  const blackMoves = reviewResults.filter(r => r.color === 'b');
+
+  const wAcc = calcAccuracy(whiteMoves);
+  const bAcc = calcAccuracy(blackMoves);
+
+  // count move qualities
+  const counts = { Brilliant:0, Excellent:0, Good:0, Inaccuracy:0, Mistake:0, Blunder:0 };
+  reviewResults.forEach(r => { if (counts[r.quality.name] !== undefined) counts[r.quality.name]++; });
+
+  container.innerHTML = `
+    <div class="review-results-header">
+      <span class="review-results-title">📋 Game Review</span>
+      <span style="font-size:12px;color:var(--text-dim);">${reviewResults.length} moves analyzed</span>
+    </div>
+
+    <!-- Accuracy -->
+    <div class="accuracy-row">
+      <div class="accuracy-card white-card">
+        <div class="accuracy-player">♔ White</div>
+        <div class="accuracy-score ${getAccuracyClass(wAcc)}">${wAcc}%</div>
+        <div class="accuracy-label">Accuracy</div>
+      </div>
+      <div class="accuracy-card black-card">
+        <div class="accuracy-player">♚ Black</div>
+        <div class="accuracy-score ${getAccuracyClass(bAcc)}">${bAcc}%</div>
+        <div class="accuracy-label">Accuracy</div>
+      </div>
+    </div>
+
+    <!-- Move quality counts -->
+    <div class="move-stats-row">
+      <div class="move-stat-box">
+        <span class="move-stat-count stat-brilliant">${counts.Brilliant}</span>
+        <span class="move-stat-label" style="color:#1baca6;">Brilliant</span>
+      </div>
+      <div class="move-stat-box">
+        <span class="move-stat-count stat-excellent">${counts.Excellent}</span>
+        <span class="move-stat-label" style="color:#96bc4b;">Excellent</span>
+      </div>
+      <div class="move-stat-box">
+        <span class="move-stat-count stat-good">${counts.Good}</span>
+        <span class="move-stat-label" style="color:#5b8a3c;">Good</span>
+      </div>
+      <div class="move-stat-box">
+        <span class="move-stat-count stat-inaccuracy">${counts.Inaccuracy}</span>
+        <span class="move-stat-label" style="color:#f0c15f;">Inaccuracy</span>
+      </div>
+      <div class="move-stat-box">
+        <span class="move-stat-count stat-mistake">${counts.Mistake}</span>
+        <span class="move-stat-label" style="color:#e58f2a;">Mistake</span>
+      </div>
+      <div class="move-stat-box">
+        <span class="move-stat-count stat-blunder">${counts.Blunder}</span>
+        <span class="move-stat-label" style="color:#ca3431;">Blunder</span>
+      </div>
+    </div>
+
+    <!-- Move list -->
+    <div class="reviewed-moves">
+      ${reviewResults.map((r, i) => `
+        <div class="reviewed-move-row" onclick="jumpToReviewMove(${i})">
+          <span class="reviewed-move-num">${r.moveNum}${r.color === 'w' ? '.' : '…'}</span>
+          <span class="reviewed-move-san">${r.san}${r.quality.label ? ' ' + r.quality.label : ''}</span>
+          <span class="reviewed-move-eval">${r.eval > 0 ? '+' : ''}${r.eval.toFixed(2)}</span>
+          <span class="reviewed-move-badge" style="background:${r.quality.color};">${r.quality.name}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function jumpToReviewMove(idx) {
+  const result = reviewResults[idx];
+  if (!result) return;
+
+  // replay to that position
+  const game = new Chess();
+  for (let i = 0; i <= result.index; i++) {
+    const h = engineGame.history({ verbose: true });
+    if (h[i]) game.move({ from: h[i].from, to: h[i].to, promotion: h[i].promotion || 'q' });
+  }
+
+  engineGame = game;
+  engineBoard.position(engineGame.fen());
+  renderEngineMoves();
+  updateEvalBar(result.eval);
+  evalHistory = reviewResults.slice(0, idx + 1).map(r => ({ label: r.san, score: r.eval }));
+  drawEvalGraph();
+  toast(`Move ${result.moveNum}: ${result.san} — ${result.quality.name}`, 'info');
+}
+
+// inject review UI into engine section
+function injectReviewPanel() {
+  if (document.getElementById('reviewPanel')) return;
+  const gameManagement = document.getElementById('gameManagement');
+  if (!gameManagement) return;
+
+  const panel = document.createElement('div');
+  panel.id = 'reviewPanel';
+  panel.style.marginTop = '14px';
+  panel.innerHTML = `
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+      <button class="review-btn" id="reviewBtn" onclick="startGameReview()">
+        🔬 Review Game
+      </button>
+      <span style="font-size:12px; color:var(--text-dim);">Analyzes every move & shows accuracy</span>
+    </div>
+    <div class="review-progress-wrapper" id="reviewProgress">
+      <div class="review-progress-label">
+        <span id="reviewProgressLabel">Analyzing...</span>
+        <span id="reviewProgressPct">0%</span>
+      </div>
+      <div class="review-progress-bar">
+        <div class="review-progress-fill" id="reviewProgressFill"></div>
+      </div>
+    </div>
+    <div class="review-results" id="reviewResults"></div>
+  `;
+  gameManagement.after(panel);
+}
+
+// ══════════════════════════════════════════════════════════════
+// FEATURE 2: CLICKABLE EVAL GRAPH
+// ══════════════════════════════════════════════════════════════
+let evalGraphPoints = [];
+
+function drawEvalGraph() {
+  const canvas = document.getElementById('evalGraph');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const W   = canvas.width  = canvas.offsetWidth || 600;
+  const H   = canvas.height = 120;
+  const pad = { top: 10, right: 10, bottom: 24, left: 36 };
+
+  ctx.clearRect(0, 0, W, H);
+
+  // background
+  ctx.fillStyle = '#0b0f1a';
+  ctx.fillRect(0, 0, W, H);
+
+  if (evalHistory.length < 2) {
+    ctx.fillStyle = 'rgba(56,189,248,0.15)';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Make moves to see evaluation graph', W / 2, H / 2);
+    return;
+  }
+
+  const ratings = evalHistory.map(h => h.score);
+  const minR    = Math.min(...ratings, -1) - 0.5;
+  const maxR    = Math.max(...ratings,  1) + 0.5;
+  const rangeR  = maxR - minR || 1;
+  const plotW   = W - pad.left - pad.right;
+  const plotH   = H - pad.top  - pad.bottom;
+
+  // center line
+  const zeroY = pad.top + plotH - ((-minR) / rangeR) * plotH;
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(pad.left, zeroY);
+  ctx.lineTo(W - pad.right, zeroY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  evalGraphPoints = evalHistory.map((h, i) => ({
+    x:     pad.left + (i / (evalHistory.length - 1)) * plotW,
+    y:     pad.top  + plotH - ((h.score - minR) / rangeR) * plotH,
+    score: h.score,
+    label: h.label,
+    index: i,
+  }));
+
+  // white advantage fill (above zero)
+  const whiteGrad = ctx.createLinearGradient(0, pad.top, 0, zeroY);
+  whiteGrad.addColorStop(0, 'rgba(240,240,240,0.3)');
+  whiteGrad.addColorStop(1, 'rgba(240,240,240,0.02)');
+
+  ctx.beginPath();
+  ctx.moveTo(evalGraphPoints[0].x, zeroY);
+  evalGraphPoints.forEach(p => ctx.lineTo(p.x, Math.min(p.y, zeroY)));
+  ctx.lineTo(evalGraphPoints[evalGraphPoints.length - 1].x, zeroY);
+  ctx.closePath();
+  ctx.fillStyle = whiteGrad;
+  ctx.fill();
+
+  // black advantage fill (below zero)
+  const blackGrad = ctx.createLinearGradient(0, zeroY, 0, H - pad.bottom);
+  blackGrad.addColorStop(0, 'rgba(56,189,248,0.02)');
+  blackGrad.addColorStop(1, 'rgba(56,189,248,0.2)');
+
+  ctx.beginPath();
+  ctx.moveTo(evalGraphPoints[0].x, zeroY);
+  evalGraphPoints.forEach(p => ctx.lineTo(p.x, Math.max(p.y, zeroY)));
+  ctx.lineTo(evalGraphPoints[evalGraphPoints.length - 1].x, zeroY);
+  ctx.closePath();
+  ctx.fillStyle = blackGrad;
+  ctx.fill();
+
+  // main line
+  ctx.beginPath();
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth   = 2;
+  ctx.lineJoin    = 'round';
+  evalGraphPoints.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.stroke();
+
+  // dots
+  evalGraphPoints.forEach((p, i) => {
+    const isLast = i === evalGraphPoints.length - 1;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, isLast ? 4 : 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = isLast ? '#38bdf8' : 'rgba(56,189,248,0.5)';
+    ctx.fill();
+  });
+
+  // x-axis move labels
+  ctx.fillStyle  = 'rgba(100,116,139,0.7)';
+  ctx.font       = '9px Arial';
+  ctx.textAlign  = 'center';
+  evalGraphPoints.forEach((p, i) => {
+    if (i % Math.max(1, Math.floor(evalGraphPoints.length / 8)) === 0) {
+      ctx.fillText(p.label || i, p.x, H - 6);
+    }
+  });
+
+  // y-axis labels
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(100,116,139,0.7)';
+  ctx.font      = '9px Arial';
+  ctx.fillText('+' + maxR.toFixed(0), pad.left - 4, pad.top + 10);
+  ctx.fillText(minR.toFixed(0),       pad.left - 4, H - pad.bottom - 2);
+}
+
+// tooltip on hover
+function initEvalGraphInteraction() {
+  const canvas = document.getElementById('evalGraph');
+  if (!canvas || canvas.dataset.interactive) return;
+  canvas.dataset.interactive = '1';
+
+  // create tooltip
+  const tooltip = document.createElement('div');
+  tooltip.className = 'eval-graph-tooltip';
+  tooltip.id = 'evalGraphTooltip';
+  canvas.parentElement.style.position = 'relative';
+  canvas.parentElement.appendChild(tooltip);
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (evalGraphPoints.length === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx   = (e.clientX - rect.left) * (canvas.width / rect.width);
+
+    // find nearest point
+    let nearest = null;
+    let minDist = Infinity;
+    evalGraphPoints.forEach(p => {
+      const d = Math.abs(p.x - mx);
+      if (d < minDist) { minDist = d; nearest = p; }
+    });
+
+    if (nearest && minDist < 30) {
+      tooltip.style.display = 'block';
+      tooltip.style.left    = Math.min(e.offsetX + 12, canvas.offsetWidth - 140) + 'px';
+      tooltip.style.top     = (e.offsetY - 60) + 'px';
+      const score = nearest.score > 0 ? '+' + nearest.score.toFixed(2) : nearest.score.toFixed(2);
+      tooltip.innerHTML = `
+        <strong>${nearest.label || 'Move ' + nearest.index}</strong>
+        Eval: ${score}<br>
+        <span style="font-size:10px;color:var(--text-dim);">Click to jump here</span>
+      `;
+    } else {
+      tooltip.style.display = 'none';
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    const t = document.getElementById('evalGraphTooltip');
+    if (t) t.style.display = 'none';
+  });
+
+  // click to jump to move
+  canvas.addEventListener('click', (e) => {
+    if (evalGraphPoints.length === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx   = (e.clientX - rect.left) * (canvas.width / rect.width);
+
+    let nearest = null;
+    let minDist = Infinity;
+    evalGraphPoints.forEach(p => {
+      const d = Math.abs(p.x - mx);
+      if (d < minDist) { minDist = d; nearest = p; }
+    });
+
+    if (nearest && minDist < 40) {
+      // jump to that move in engine
+      const history = engineGame.history({ verbose: true });
+      const target  = nearest.index;
+      const game    = new Chess();
+      for (let i = 0; i <= target && i < history.length; i++) {
+        game.move({ from: history[i].from, to: history[i].to, promotion: history[i].promotion || 'q' });
+      }
+      engineGame = game;
+      engineBoard.position(engineGame.fen());
+      renderEngineMoves();
+      updateEvalBar(nearest.score);
+      toast(`Jumped to move ${nearest.index + 1}: ${nearest.label}`, 'info');
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// FEATURE 3: BOARD THEMES
+// ══════════════════════════════════════════════════════════════
+const BOARD_THEMES = [
+  {
+    id: 'classic',
+    name: 'Classic',
+    light: '#f0d9b5',
+    dark:  '#b58863',
+  },
+  {
+    id: 'ocean',
+    name: 'Ocean',
+    light: '#dee3e6',
+    dark:  '#8ca2ad',
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    light: '#e8edf9',
+    dark:  '#4a6fa5',
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    light: '#ffffdd',
+    dark:  '#86a666',
+  },
+  {
+    id: 'purple',
+    name: 'Purple',
+    light: '#f0e8ff',
+    dark:  '#7c4daa',
+  },
+  {
+    id: 'slate',
+    name: 'Slate',
+    light: '#cdd5e0',
+    dark:  '#4a5568',
+  },
+  {
+    id: 'rose',
+    name: 'Rose',
+    light: '#ffe8e8',
+    dark:  '#c0454a',
+  },
+  {
+    id: 'cyber',
+    name: 'Cyber',
+    light: '#0f3460',
+    dark:  '#16213e',
+  },
+];
+
+const PIECE_SETS = [
+  { id: 'wikipedia', name: '♟ Classic',  url: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png' },
+  { id: 'alpha',     name: '🔷 Alpha',   url: 'https://lichess1.org/assets/piece/alpha/{piece}.svg' },
+  { id: 'cburnett',  name: '🎨 Modern',  url: 'https://lichess1.org/assets/piece/cburnett/{piece}.svg' },
+  { id: 'merida',    name: '👑 Merida',  url: 'https://lichess1.org/assets/piece/merida/{piece}.svg' },
+];
+
+let currentBoardTheme = localStorage.getItem('boardTheme') || 'classic';
+let currentPieceSet   = localStorage.getItem('pieceSet')   || 'wikipedia';
+
+function applyBoardTheme(themeId) {
+  const theme = BOARD_THEMES.find(t => t.id === themeId);
+  if (!theme) return;
+
+  currentBoardTheme = themeId;
+  localStorage.setItem('boardTheme', themeId);
+
+  // inject/update CSS for board squares
+  let styleEl = document.getElementById('boardThemeStyle');
+  if (!styleEl) {
+    styleEl    = document.createElement('style');
+    styleEl.id = 'boardThemeStyle';
+    document.head.appendChild(styleEl);
+  }
+
+  styleEl.textContent = `
+    .board-b72b1 .white-1e1d7 { background-color: ${theme.light} !important; }
+    .board-b72b1 .black-3c85d { background-color: ${theme.dark}  !important; }
+    .white-1e1d7 { background-color: ${theme.light} !important; }
+    .black-3c85d { background-color: ${theme.dark}  !important; }
+  `;
+
+  // update active swatch
+  document.querySelectorAll('.board-swatch').forEach(s => {
+    s.classList.toggle('swatch-active', s.dataset.theme === themeId);
+  });
+
+  toast(`Board theme: ${theme.name} 🎨`, 'success');
+}
+
+function applyPieceSet(setId) {
+  const set = PIECE_SETS.find(s => s.id === setId);
+  if (!set) return;
+
+  currentPieceSet = setId;
+  localStorage.setItem('pieceSet', setId);
+
+  // rebuild all active boards with new piece set
+  const boards = [
+    { id: 'engineBoard', game: engineGame },
+    { id: 'board',       game: currentBoard?.chess },
+    { id: 'playBoard',   game: playGame },
+    { id: 'puzzleBoard', game: puzzleGame },
+  ];
+
+  boards.forEach(({ id, game }) => {
+    const el = document.getElementById(id);
+    if (!el || !game) return;
+    // chessboard.js re-renders pieces on position() call
+    const existing = window[id + 'Instance'];
+    if (existing) existing.position(game.fen(), false);
+  });
+
+  // update active button
+  document.querySelectorAll('.piece-set-btn').forEach(b => {
+    b.classList.toggle('set-active', b.dataset.set === setId);
+  });
+
+  toast(`Piece set: ${set.name}`, 'success');
+}
+
+function renderThemePanel() {
+  const existing = document.getElementById('themePanel');
+  if (existing) return;
+
+  const evalContainer = document.getElementById('evalGraphContainer');
+  if (!evalContainer) return;
+
+  const panel = document.createElement('div');
+  panel.id = 'themePanel';
+  panel.className = 'theme-panel';
+
+  panel.innerHTML = `
+    <div class="theme-panel-title">🎨 Board Themes</div>
+
+    <div class="theme-section-label">Board Colors</div>
+    <div class="board-color-grid">
+      ${BOARD_THEMES.map(t => `
+        <div
+          class="board-swatch ${t.id === currentBoardTheme ? 'swatch-active' : ''}"
+          data-theme="${t.id}"
+          title="${t.name}"
+          onclick="applyBoardTheme('${t.id}')"
+        >
+          <div class="sq-light" style="background:${t.light};"></div>
+          <div class="sq-dark"  style="background:${t.dark};"></div>
+          <div class="sq-dark"  style="background:${t.dark};"></div>
+          <div class="sq-light" style="background:${t.light};"></div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="theme-section-label" style="margin-top:14px;">Piece Sets</div>
+    <div class="piece-set-grid">
+      ${PIECE_SETS.map(s => `
+        <button
+          class="piece-set-btn ${s.id === currentPieceSet ? 'set-active' : ''}"
+          data-set="${s.id}"
+          onclick="applyPieceSet('${s.id}')"
+        >${s.name}</button>
+      `).join('')}
+    </div>
+  `;
+
+  evalContainer.after(panel);
+}
+
+// ─── PATCH initEngineBoard: inject features after init ────────
+const _initEngineBoardOrig = initEngineBoard;
+// Override using variable assignment to avoid duplicate function declaration
+window._patchedInitEngine  = false;
+const _originalInitEngine  = initEngineBoard;
+
+// Monkey-patch: wrap initEngineBoard to inject panels after board init
+(function() {
+  const orig = initEngineBoard;
+  window.initEngineBoard = function() {
+    orig();
+    if (!window._engineFeaturesInjected) {
+      setTimeout(() => {
+        injectReviewPanel();
+        renderThemePanel();
+        initEvalGraphInteraction();
+        applyBoardTheme(currentBoardTheme);
+        window._engineFeaturesInjected = true;
+      }, 600);
+    }
+  };
+})();
+
+// Monkey-patch: wrap drawEvalGraph to always re-init interaction
+(function() {
+  const orig = drawEvalGraph;
+  window.drawEvalGraph = function() {
+    orig();
+    initEvalGraphInteraction();
+  };
+})();
+
+// ══════════════════════════════════════════════════════════════
+// ─── PLAYER IMAGE & GAME DISPLAY FIXES ───────────────────────
+// ══════════════════════════════════════════════════════════════
+
+// ─── SAFE IMAGE URL ────────────────────────────────────────────
+function safeImage(url, size = 80) {
+  if (url && typeof url === 'string' && url.trim().startsWith('http')) {
+    return url.trim();
+  }
+  return `https://placehold.co/${size}x${size}/1e293b/38bdf8?text=%E2%99%9F`;
+}
+
+// ─── PATCH renderPlayers TO USE safeImage ─────────────────────
+const _renderPlayersOrig = renderPlayers;
+function renderPlayers() {
+  _renderPlayersOrig();
+  // after render, fix any broken images
+  document.querySelectorAll('.player-img').forEach(img => {
+    if (!img.src || img.src.includes('undefined') || img.src.includes('null')) {
+      img.src = 'https://placehold.co/80x80/1e293b/38bdf8?text=%E2%99%9F';
+    }
+  });
+}
+
+// ─── PATCH openProfile TO USE safeImage ───────────────────────
+const _openProfileForImage = openProfile;
+function openProfile(index) {
+  _openProfileForImage(index);
+  setTimeout(() => {
+    const avatar = document.querySelector('.profile-avatar');
+    if (avatar && (!avatar.src || avatar.src.includes('undefined') || avatar.src.includes('null') || avatar.src.includes('placehold'))) {
+      const player = players[index];
+      if (player && player.image && player.image.startsWith('http')) {
+        avatar.src = player.image;
+      }
+    }
+  }, 200);
+}
+
+// ─── DEBUG: LOG PLAYER DATA ON FETCH ──────────────────────────
+const _fetchPlayersOrig = fetchPlayers;
+async function fetchPlayers() {
+  await _fetchPlayersOrig();
+  console.log(`Fetched ${players.length} players`);
+  players.forEach(p => {
+    console.log(`Player: ${p.name} | Image: ${p.image || 'none'} | Games: ${p.games?.length || 0}`);
+  });
+}
