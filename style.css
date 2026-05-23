@@ -5875,3 +5875,25 @@ html { scroll-behavior: smooth; }
   .study-grid        { grid-template-columns: 1fr; }
   .stats-grid-v2     { grid-template-columns: 1fr; }
 }
+
+/* ─── FEATURED TITLE PILL ─────────────────────────────────── */
+.featured-title-pill {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 900;
+  backdrop-filter: blur(8px);
+  z-index: 3;
+}
+
+/* ─── DAILY GAME CARD ─────────────────────────────────────── */
+#dailyGame .card {
+  cursor: pointer;
+  min-height: 120px;
+}
+
+/* ─── HOME H2 OVERRIDE ────────────────────────────────────── */
+.home-section-title::after { display: none !important; }
