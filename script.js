@@ -169,14 +169,17 @@ function renderPlayers() {
     const actualIndex = players.indexOf(p);
     const views       = getViews(p.id);
     const div = document.createElement('div');
+    const imgSrc = (p.image && typeof p.image === 'string' && p.image.startsWith('http'))
+      ? p.image
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1e293b&color=38bdf8&size=80&bold=true`;
     div.innerHTML = `
       <div class="card">
         <div class="card-content">
           <img
-            src="${p.image && p.image.trim() && p.image.startsWith('http') ? sanitize(p.image) : 'https://placehold.co/80x80/1e293b/38bdf8?text=♟'}"
+            src="${imgSrc}"
             class="player-img"
             loading="lazy"
-            onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'"
+            onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1e293b&color=38bdf8&size=80&bold=true'"
           >
           <div class="player-info">
             <h2>
@@ -236,9 +239,9 @@ function openProfile(index) {
 
       <!-- PROFILE HEADER -->
       <div class="profile-header">
-        <img src="${player.image && player.image.startsWith('http') ? sanitize(player.image) : 'https://placehold.co/150x150/1e293b/38bdf8?text=♟'}"
+        <img src="${player.image && player.image.startsWith('http') ? sanitize(player.image) : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=1e293b&color=38bdf8&size=150&bold=true`}"
              class="profile-avatar" loading="lazy"
-             onerror="this.src='https://placehold.co/80x80/1e293b/38bdf8?text=♟'">
+             onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=1e293b&color=38bdf8&size=150&bold=true'">
         <div class="profile-meta">
           <h2>
             ${player.title ? `<span class="title-badge title-${player.title}">${player.title}</span>` : ''}
@@ -630,7 +633,7 @@ async function addPlayer() {
     document.getElementById('blackTitle').value = '';
     document.getElementById('extraGames').innerHTML = '';
     cache.players.data = null;
-    await fetchPlayers();
+    await fetchPlayers(true);
     toast('Player updated! ✅', 'success');
     showTab('players');
     return;
@@ -710,7 +713,7 @@ async function addPlayer() {
   document.getElementById('extraGames').innerHTML = '';
   document.getElementById('editGamesSection').style.display = 'none';
   cache.players.data = null;
-  await fetchPlayers();
+  await fetchPlayers(true);
   toast('Player added! ♟', 'success');
   launchConfetti();
   showTab('players');
@@ -727,7 +730,7 @@ async function deletePlayer(index, event) {
       const { error } = await client.from('players').delete().eq('id', player.id);
       if (error) { toast('Delete failed', 'error'); return; }
       cache.players.data = null;
-      fetchPlayers();
+      fetchPlayers(true);
       toast(`${player.name} deleted.`, 'info');
     }
   );
@@ -753,8 +756,8 @@ function editPlayer(index, event) {
 }
 
 // ─── FETCH PLAYERS ─────────────────────────────────────────
-async function fetchPlayers() {
-  if (isCacheValid('players')) {
+async function fetchPlayers(force = false) {
+  if (!force && isCacheValid('players')) {
     players = cache.players.data;
     renderPlayers();
     renderFeaturedPlayers();
@@ -767,6 +770,8 @@ async function fetchPlayers() {
     populateCompareSelects();
     return;
   }
+  // always invalidate on forced fetch
+  cache.players.data = null;
 
   showSkeletons('featuredPlayers', 3, 'featured');
   showSkeletons('playersContainer', 6, 'player');
@@ -935,24 +940,38 @@ function renderFeaturedPlayers() {
   const container = document.getElementById('featuredPlayers');
   if (!container) return;
 
+  if (players.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:40px;grid-column:1/-1;">No players yet.</p>';
+    return;
+  }
+
   container.innerHTML = players.slice(0, 3).map((p, i) => {
     const totalGames = p.games ? p.games.length : 0;
+    const views      = getViews(p.id);
+    const imgSrc     = (p.image && p.image.startsWith('http'))
+      ? sanitize(p.image)
+      : 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=1e293b&color=38bdf8&size=200&bold=true';
+    const fallbackSrc = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name) + '&background=1e293b&color=38bdf8&size=200&bold=true';
+
     return `
       <div class="featured-card" onclick="openProfile(${i})">
         <div class="featured-img-wrapper">
-          <img src="${p.image && p.image.startsWith('http') ? sanitize(p.image) : 'https://placehold.co/200x200/1e293b/38bdf8?text=♟'}" loading="lazy" onerror="this.src='https://placehold.co/200x200/1e293b/38bdf8?text=♟'">
+          <img src="${imgSrc}" loading="lazy" onerror="this.src='${fallbackSrc}'">
           <div class="featured-overlay">
-            <button class="featured-view-btn">View Profile</button>
+            <button class="featured-view-btn">View Profile →</button>
           </div>
+          ${p.title ? '<span class="featured-title-pill title-' + p.title + '">' + p.title + '</span>' : ''}
         </div>
         <div class="featured-info">
           <div class="featured-name">
-            ${p.title ? `<span class="title-badge title-${p.title}">${p.title}</span>` : ''}
             <strong>${sanitize(p.name)}</strong>
           </div>
-          ${p.rating ? `<div class="featured-rating">⭐ ${p.rating}</div>` : ''}
-          <div class="featured-meta"><span>🎮 ${totalGames} Game${totalGames !== 1 ? 's' : ''}</span></div>
-          <p class="featured-bio">${p.bio.length > 80 ? sanitize(p.bio.substring(0, 80)) + '...' : sanitize(p.bio)}</p>
+          ${p.rating ? '<div class="featured-rating">⭐ ' + p.rating + ' FIDE</div>' : ''}
+          <div class="featured-meta">
+            <span>🎮 ${totalGames} Game${totalGames !== 1 ? 's' : ''}</span>
+            ${views > 0 ? '<span>👁 ' + views + ' views</span>' : ''}
+          </div>
+          <p class="featured-bio">${p.bio.length > 90 ? sanitize(p.bio.substring(0, 90)) + '...' : sanitize(p.bio)}</p>
         </div>
       </div>
     `;
@@ -1978,9 +1997,11 @@ function updateHeroStats() {
   const playerEl   = document.getElementById('heroPlayerCount');
   const gameEl     = document.getElementById('heroGameCount');
   const articleEl  = document.getElementById('heroArticleCount');
+  const pdfEl      = document.getElementById('heroPDFCount');
   if (playerEl)  animateCount(playerEl,  players.length);
   if (gameEl)    animateCount(gameEl,    totalGames);
   if (articleEl) animateCount(articleEl, articles.length);
+  if (pdfEl)     animateCount(pdfEl,     pdfs.length);
 }
 
 function animateCount(el, target) {
@@ -2141,6 +2162,9 @@ function handlePlayDrop(source, target) {
   updatePlayStatus();
 
   if (playGame.game_over()) { showPlayResult(); return; }
+
+  // switch clock to computer after player moves
+  if (clockRunning) startClock(playColor === 'white' ? 'b' : 'w');
 
   setTimeout(() => computerPlayMove(), 400);
 }
@@ -3294,52 +3318,7 @@ function addMoveComment(idx, text) {
 
 // Override renderMoves to support annotations
 const _renderMovesOriginal = renderMoves;
-function renderMoves() {
-  const movesDiv = document.getElementById('moves');
-  if (!currentBoard || !movesDiv) return;
 
-  const fragment = document.createDocumentFragment();
-  const moves    = currentBoard.moves;
-
-  for (let i = 0; i < moves.length; i += 2) {
-    const row    = document.createElement('div');
-    const number = document.createElement('span');
-    number.className = 'move-number';
-    number.innerText = `${Math.floor(i / 2) + 1}.`;
-    row.appendChild(number);
-
-    [0, 1].forEach(offset => {
-      const mi = i + offset;
-      if (!moves[mi]) return;
-      const span = document.createElement('span');
-      span.className = 'move';
-      if (mi === currentBoard.moveIndex - 1) span.classList.add('active');
-      span.onclick = () => goToMove(mi);
-
-      const ann = moveAnnotations[mi];
-      if (ann && ANNOTATIONS[ann]) {
-        span.classList.add('annotated');
-        span.innerHTML = moves[mi] + `<span class="move-annotation ${ANNOTATIONS[ann].cls}">${ann}</span>`;
-      } else {
-        span.innerText = moves[mi];
-      }
-      row.appendChild(span);
-
-      // comment below move pair
-      if (offset === 1 && moveComments[mi]) {
-        const comment = document.createElement('span');
-        comment.className = 'move-comment';
-        comment.innerText = moveComments[mi];
-        row.appendChild(comment);
-      }
-    });
-
-    fragment.appendChild(row);
-  }
-
-  movesDiv.innerHTML = '';
-  movesDiv.appendChild(fragment);
-}
 
 // ─── REPLAY AUTO-PLAY ─────────────────────────────────────────
 let replayInterval = null;
@@ -3521,10 +3500,7 @@ function injectAnnotationEditor() {
 
 // ─── INJECT CLOCK INTO PLAY VS COMPUTER ───────────────────────
 const _startGameOriginal = startGame;
-function startGame() {
-  _startGameOriginal();
-  setTimeout(() => injectGameClock(), 300);
-}
+
 
 function injectGameClock() {
   if (document.getElementById('gameClockBar')) return;
@@ -3565,52 +3541,23 @@ function injectGameClock() {
 
 // ─── HOOK CLOCK INTO PLAY MOVES ───────────────────────────────
 const _handlePlayDropOriginal = handlePlayDrop;
-function handlePlayDrop(source, target) {
-  const result = _handlePlayDropOriginal(source, target);
-  if (result !== 'snapback' && clockRunning) {
-    // switch clock to computer's turn
-    startClock(playColor === 'white' ? 'b' : 'w');
-  }
-  return result;
-}
+// clock switch merged into handlePlayDrop above
 
 // hook clock back to player after computer moves
 const _computerPlayMoveOriginal = computerPlayMove;
-function computerPlayMove() {
-  _computerPlayMoveOriginal();
-}
+
 
 // patch playEngine onmessage to switch clock after computer move
 const _initPlayEngineOriginal = initPlayEngine;
-function initPlayEngine() {
-  _initPlayEngineOriginal();
-  // re-patch onmessage to switch clock
-  if (playEngine) {
-    const origMsg = playEngine.onmessage;
-    playEngine.onmessage = function(e) {
-      origMsg.call(this, e);
-      if (e.data.startsWith('bestmove') && clockRunning) {
-        startClock(playColor === 'white' ? 'w' : 'b');
-      }
-    };
-  }
-}
+
 
 // stop clock on game end
 const _showPlayResultOriginal = showPlayResult;
-function showPlayResult() {
-  stopClock();
-  _showPlayResultOriginal();
-}
+
 
 // reset clock on new game
 const _resetPlayGameOriginal = resetPlayGame;
-function resetPlayGame() {
-  stopClock();
-  const clockBar = document.getElementById('gameClockBar');
-  if (clockBar) clockBar.remove();
-  _resetPlayGameOriginal();
-}
+
 
 // ─── BEST MOVE DISPLAY IN ENGINE ──────────────────────────────
 function showBestMoveBar(from, to) {
@@ -3631,10 +3578,7 @@ function showBestMoveBar(from, to) {
 
 // patch drawArrow to also show best move bar
 const _drawArrowOriginal = drawArrow;
-function drawArrow(from, to) {
-  _drawArrowOriginal(from, to);
-  showBestMoveBar(from, to);
-}
+
 
 toast('Group 3 loaded: Annotations, Timer & Replay ♟', 'info');
 
@@ -4524,30 +4468,11 @@ function safeImage(url, size = 80) {
 
 // ─── PATCH renderPlayers TO USE safeImage ─────────────────────
 const _renderPlayersOrig = renderPlayers;
-function renderPlayers() {
-  _renderPlayersOrig();
-  // after render, fix any broken images
-  document.querySelectorAll('.player-img').forEach(img => {
-    if (!img.src || img.src.includes('undefined') || img.src.includes('null')) {
-      img.src = 'https://placehold.co/80x80/1e293b/38bdf8?text=%E2%99%9F';
-    }
-  });
-}
+
 
 // ─── PATCH openProfile TO USE safeImage ───────────────────────
 const _openProfileForImage = openProfile;
-function openProfile(index) {
-  _openProfileForImage(index);
-  setTimeout(() => {
-    const avatar = document.querySelector('.profile-avatar');
-    if (avatar && (!avatar.src || avatar.src.includes('undefined') || avatar.src.includes('null') || avatar.src.includes('placehold'))) {
-      const player = players[index];
-      if (player && player.image && player.image.startsWith('http')) {
-        avatar.src = player.image;
-      }
-    }
-  }, 200);
-}
+
 
 // ─── DEBUG: LOG PLAYER DATA ON FETCH ──────────────────────────
 const _fetchPlayersOrig = fetchPlayers;
